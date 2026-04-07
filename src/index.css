@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --color-erp-primary: #1a3a6d;
+  --color-erp-secondary: #0084ff;
+  --color-erp-bg: #f0f2f5;
+  --color-erp-border: #e8eaec;
+  --color-erp-text-main: #333333;
+  --color-erp-text-sub: #808695;
+}
+
+@layer base {
+  body {
+    @apply bg-erp-bg text-erp-text-main font-sans;
+  }
+}
+
+.erp-table-header {
+  @apply bg-[#f8f8f9] text-[#515a6e] font-bold text-sm;
+}
+
+.erp-section-title {
+  @apply flex items-center border-b border-erp-secondary pb-2 mb-6;
+}
+
+.erp-section-num {
+  @apply text-erp-secondary font-bold mr-3;
+}
+
+.erp-section-text {
+  @apply text-erp-secondary font-medium;
+}
+
+.required::before {
+  content: "*";
+  @apply text-red-500 mr-1;
+}

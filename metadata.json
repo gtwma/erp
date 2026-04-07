@@ -1,0 +1,5 @@
+{
+  "name": "ERP全生命周期管理系统",
+  "description": "涵盖需求提报、计划下达、分包采购的全链路ERP管理模块，支持单据合并拆分与血缘追溯。",
+  "requestFramePermissions": []
+}
