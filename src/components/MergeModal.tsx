@@ -26,14 +26,20 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
 
   // Group items for preview
   const groupedTargets = React.useMemo(() => {
-    const groups: Record<string, { materialCode: string, name: string, spec: string, totalQty: number, sourceCount: number }> = {};
+    const groups: Record<string, { materialCode: string, name: string, spec: string, unitPrice?: number, totalQty: number, sourceCount: number }> = {};
     sources.forEach(s => {
-      const key = `${s.materialCode}|${s.name}|${s.spec}`;
+      // For requirements, we group by unitPrice as well to match App.tsx logic
+      const unitPrice = (s as Requirement).unitPrice;
+      const key = type === 'REQ' 
+        ? `${s.materialCode}|${s.name}|${s.spec}|${unitPrice}`
+        : `${s.materialCode}|${s.name}|${s.spec}`;
+        
       if (!groups[key]) {
         groups[key] = { 
           materialCode: s.materialCode, 
           name: s.name, 
           spec: s.spec, 
+          unitPrice: type === 'REQ' ? unitPrice : undefined,
           totalQty: 0,
           sourceCount: 0
         };
@@ -42,7 +48,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
       groups[key].sourceCount += 1;
     });
     return Object.values(groups);
-  }, [sources]);
+  }, [sources, type]);
 
   const getLineageFor = (id: string) => lineage.filter(l => l.targetIds.includes(id));
 
@@ -57,12 +63,29 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
         >
           {/* Header */}
           <div className="px-6 py-3 border-b border-erp-border flex justify-between items-center bg-white">
-            <div className="flex items-center space-x-3">
-              <span className="text-sm font-bold text-gray-800">{title}</span>
-              <div className="flex items-center space-x-2 text-[10px] text-gray-500">
-                <span>创建时间: {new Date().toLocaleDateString()}</span>
-                <span className="w-px h-3 bg-gray-300"></span>
-                <span>状态: <span className="text-blue-500">编辑中</span></span>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 mr-2">
+                <button
+                  onClick={onConfirm}
+                  className="px-4 py-1.5 rounded-[2px] text-xs font-medium text-white bg-[#2196F3] hover:bg-blue-600 transition-all shadow-sm"
+                >
+                  确认合并
+                </button>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-1.5 border border-gray-300 rounded-[2px] text-xs font-medium text-gray-600 hover:bg-gray-50 transition-all bg-white"
+                >
+                  取消
+                </button>
+              </div>
+              <div className="h-6 w-px bg-gray-200 mx-2"></div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-gray-800">{title}</span>
+                <div className="flex items-center space-x-3 text-[10px] text-gray-500 mt-0.5">
+                  <span>创建时间: {new Date().toLocaleDateString()}</span>
+                  <span className="w-px h-3 bg-gray-300"></span>
+                  <span>状态: <span className="text-green-500 font-medium">审核通过</span></span>
+                </div>
               </div>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -113,7 +136,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
 
                   <div className="flex items-center space-x-4">
                     <span className="w-24 text-right text-xs text-gray-500 shrink-0">审核状态:</span>
-                    <span className="text-xs text-blue-500 font-medium">编辑中</span>
+                    <span className="text-xs text-green-500 font-medium">审核通过</span>
                   </div>
                 </div>
               </div>
@@ -186,6 +209,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
                         <th className="px-4 py-3">物料编码</th>
                         <th className="px-4 py-3">物料名称</th>
                         <th className="px-4 py-3">规格型号</th>
+                        {type === 'REQ' && <th className="px-4 py-3 text-right">单价</th>}
                         <th className="px-4 py-3 text-right">合并后数量</th>
                         <th className="px-4 py-3 text-center">源单据数</th>
                       </tr>
@@ -197,6 +221,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
                           <td className="px-4 py-3 text-gray-600 font-mono">{t.materialCode}</td>
                           <td className="px-4 py-3 text-gray-800 font-medium">{t.name}</td>
                           <td className="px-4 py-3 text-gray-500">{t.spec}</td>
+                          {type === 'REQ' && <td className="px-4 py-3 text-right text-gray-400">{t.unitPrice?.toFixed(2) || '--'}</td>}
                           <td className="px-4 py-3 text-right font-bold text-blue-600">{t.totalQty.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center text-gray-500">{t.sourceCount}</td>
                         </tr>
@@ -204,7 +229,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
                     </tbody>
                     <tfoot className="bg-blue-50/30">
                       <tr className="text-[11px] font-bold border-t border-erp-border">
-                        <td colSpan={4} className="px-4 py-3 text-right text-gray-500">合并总计:</td>
+                        <td colSpan={type === 'REQ' ? 5 : 4} className="px-4 py-3 text-right text-gray-500">合并总计:</td>
                         <td className="px-4 py-3 text-right text-blue-600">{totalQty.toFixed(2)}</td>
                         <td className="px-4 py-3 text-center text-gray-500">{sources.length}</td>
                       </tr>
@@ -239,27 +264,6 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
             </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-erp-border flex justify-between items-center">
-            <div className="flex items-center space-x-2 text-[10px] text-gray-500">
-              <AlertCircle className="w-3.5 h-3.5 text-blue-500" />
-              <span>系统将自动建立溯源关系，合并后原单据将标记为“已合并”</span>
-            </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={onClose}
-                className="px-6 py-1.5 border border-gray-300 rounded-[2px] text-xs font-medium text-gray-600 hover:bg-white bg-white transition-all"
-              >
-                取消
-              </button>
-              <button
-                onClick={onConfirm}
-                className="px-6 py-1.5 rounded-[2px] text-xs font-medium text-white bg-[#2196F3] hover:bg-blue-600 transition-all shadow-sm"
-              >
-                确认合并
-              </button>
-            </div>
-          </div>
         </motion.div>
       </div>
     </AnimatePresence>

@@ -29,8 +29,8 @@ import {
   BarChart3,
   SearchCode
 } from 'lucide-react';
-import { Requirement, Plan, Subcontract, ReqStatus, PlanStatus, LineageRelation } from './types';
-import { MOCK_REQUIREMENTS, MOCK_PLANS, MOCK_SUBCONTRACTS, MOCK_LINEAGE } from './constants';
+import { Requirement, Plan, Subcontract, ReqStatus, PlanStatus, LineageRelation, ProjectApproval } from './types';
+import { MOCK_REQUIREMENTS, MOCK_PLANS, MOCK_SUBCONTRACTS, MOCK_LINEAGE, MOCK_PROJECTS } from './constants';
 import { RequirementPool } from './components/RequirementPool';
 import { PlanPool } from './components/PlanPool';
 import { SubcontractPool } from './components/SubcontractPool';
@@ -41,15 +41,20 @@ import { RequirementAppList } from './components/RequirementAppList';
 import { ViewDocument } from './components/ViewDocument';
 import { SplitModal } from './components/SplitModal';
 import { MergeModal } from './components/MergeModal';
+import { SubcontractModal } from './components/SubcontractModal';
+import { ProjectApprovalPool } from './components/ProjectApprovalPool';
+import { CreateProjectApproval } from './components/CreateProjectApproval';
+import { PickRequirementModal } from './components/PickRequirementModal';
 import { motion, AnimatePresence } from 'motion/react';
 
-type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN';
+type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN' | 'VIEW_SUB' | 'PROJECT_APP' | 'CREATE_PROJECT';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('DASHBOARD');
   const [requirements, setRequirements] = useState<Requirement[]>(MOCK_REQUIREMENTS);
   const [plans, setPlans] = useState<Plan[]>(MOCK_PLANS);
   const [subcontracts, setSubcontracts] = useState<Subcontract[]>(MOCK_SUBCONTRACTS);
+  const [projects, setProjects] = useState<ProjectApproval[]>(MOCK_PROJECTS);
   const [lineage, setLineage] = useState<LineageRelation[]>(MOCK_LINEAGE);
 
   // Split Modal State
@@ -62,6 +67,14 @@ export default function App() {
   const [mergeTargetIds, setMergeTargetIds] = useState<string[]>([]);
   const [mergeType, setMergeType] = useState<'REQ' | 'PLAN'>('REQ');
 
+  // Subcontract Modal State
+  const [subcontractModalOpen, setSubcontractModalOpen] = useState(false);
+  const [subcontractTargetPlans, setSubcontractTargetPlans] = useState<Plan[]>([]);
+
+  // Pick Requirement Modal State
+  const [pickReqModalOpen, setPickReqModalOpen] = useState(false);
+  const [pickReqTargetId, setPickReqTargetId] = useState<string | undefined>(undefined);
+
   // View Document State
   const [viewingDoc, setViewingDoc] = useState<Requirement | Plan | null>(null);
 
@@ -71,22 +84,66 @@ export default function App() {
     const pendingReq = requirements.filter(r => r.status === ReqStatus.APPROVED).length;
     const totalPlan = plans.length;
     const totalSub = subcontracts.length;
-    return { totalReq, pendingReq, totalPlan, totalSub };
-  }, [requirements, plans, subcontracts]);
+    const totalProject = projects.length;
+    return { totalReq, pendingReq, totalPlan, totalSub, totalProject };
+  }, [requirements, plans, subcontracts, projects]);
 
   // Handlers
-  const handlePickToPlan = (ids: string[]) => {
+  const handlePickToPlan = (ids: string[], targetPlanId?: string) => {
     const selectedReqs = requirements.filter(r => ids.includes(r.id));
-    const newPlans: Plan[] = selectedReqs.map((req, idx) => ({
-      id: `PLN-${Date.now()}-${idx}`,
-      reqLineId: req.id,
-      materialCode: req.materialCode,
-      name: req.name,
-      spec: req.spec,
-      qty: req.qty - req.assignedQty,
-      status: PlanStatus.APPROVED,
-      createdAt: new Date().toLocaleString(),
-    }));
+    if (selectedReqs.length === 0) return;
+
+    const now = Date.now();
+    const totalQty = selectedReqs.reduce((sum, r) => sum + (r.qty - r.assignedQty), 0);
+    
+    // Aggregate all items from all selected requirements
+    const newItems: any[] = [];
+    selectedReqs.forEach(req => {
+      if (req.items && req.items.length > 0) {
+        req.items.forEach(item => {
+          newItems.push({
+            ...item,
+            id: `PLN-LI-${now}-${item.id}`
+          });
+        });
+      } else {
+        newItems.push({
+          id: `PLN-LI-${now}-${req.id}`,
+          materialCode: req.materialCode,
+          materialName: req.name,
+          spec: req.spec,
+          unit: '个',
+          qty: req.qty - req.assignedQty,
+          unitPrice: req.unitPrice
+        });
+      }
+    });
+
+    if (targetPlanId) {
+      setPlans(plans.map(p => {
+        if (p.id === targetPlanId) {
+          return {
+            ...p,
+            qty: p.qty + totalQty,
+            items: [...(p.items || []), ...newItems]
+          };
+        }
+        return p;
+      }));
+    } else {
+      const newPlan: Plan = {
+        id: `PLN-${now}`,
+        reqLineId: selectedReqs[0].id,
+        materialCode: selectedReqs.length === 1 ? selectedReqs[0].materialCode : 'MULTIPLE',
+        name: `采购计划汇总`,
+        spec: selectedReqs.length === 1 ? selectedReqs[0].spec : '混合规格',
+        qty: totalQty,
+        status: PlanStatus.APPROVED,
+        createdAt: new Date().toLocaleString(),
+        items: newItems
+      };
+      setPlans(prev => [...prev, newPlan]);
+    }
 
     const updatedReqs = requirements.map(req => {
       if (ids.includes(req.id)) {
@@ -96,17 +153,16 @@ export default function App() {
     });
 
     setRequirements(updatedReqs);
-    setPlans([...plans, ...newPlans]);
     
-    const newLineage: LineageRelation[] = selectedReqs.map((req, idx) => ({
-      id: `L-${Date.now()}-${idx}`,
+    const newLineage: LineageRelation = {
+      id: `L-${now}`,
       type: 'REQ_TO_PLAN',
-      sourceIds: [req.id],
-      targetIds: [newPlans[idx].id],
-      qty: req.qty - req.assignedQty,
+      sourceIds: ids,
+      targetIds: [targetPlanId || `PLN-${now}`],
+      qty: totalQty,
       timestamp: new Date().toLocaleString(),
-    }));
-    setLineage([...lineage, ...newLineage]);
+    };
+    setLineage([...lineage, newLineage]);
     
     setCurrentView('PLAN_POOL');
   };
@@ -120,47 +176,59 @@ export default function App() {
   const confirmMergeReqs = () => {
     const ids = mergeTargetIds;
     const selectedReqs = requirements.filter(r => ids.includes(r.id));
-    
-    // Group by material properties
-    const groups: Record<string, { items: Requirement[], totalQty: number }> = {};
-    selectedReqs.forEach(req => {
-      const key = `${req.materialCode}|${req.name}|${req.spec}|${req.unitPrice}`;
-      if (!groups[key]) {
-        groups[key] = { items: [], totalQty: 0 };
-      }
-      groups[key].items.push(req);
-      groups[key].totalQty += req.qty;
-    });
+    if (selectedReqs.length === 0) return;
 
-    const newReqs: Requirement[] = [];
-    const newLineages: LineageRelation[] = [];
     const now = Date.now();
+    const totalQty = selectedReqs.reduce((sum, r) => sum + r.qty, 0);
+    const totalPrice = selectedReqs.reduce((sum, r) => sum + r.qty * r.unitPrice, 0);
+    const first = selectedReqs[0];
 
-    Object.values(groups).forEach((group, idx) => {
-      const first = group.items[0];
-      const newReq: Requirement = {
-        id: `REQ-MERGE-${now}-${idx}`,
-        materialCode: first.materialCode,
-        name: first.name,
-        spec: first.spec,
-        qty: group.totalQty,
-        assignedQty: 0,
-        unitPrice: first.unitPrice,
-        status: ReqStatus.DRAFT,
-        createdAt: new Date().toLocaleString(),
-        creator: '系统合并',
-      };
-      newReqs.push(newReq);
-
-      newLineages.push({
-        id: `L-MERGE-${now}-${idx}`,
-        type: 'REQ_MERGE',
-        sourceIds: group.items.map(i => i.id),
-        targetIds: [newReq.id],
-        qty: group.totalQty,
-        timestamp: new Date().toLocaleString(),
-      });
+    // Group by material properties for line items
+    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, totalQty: number, unitPrice: number }> = {};
+    selectedReqs.forEach(r => {
+      const key = `${r.materialCode}|${r.name}|${r.spec}|${r.unitPrice}`;
+      if (!itemGroups[key]) {
+        itemGroups[key] = { 
+          materialCode: r.materialCode, 
+          materialName: r.name, 
+          spec: r.spec, 
+          totalQty: 0, 
+          unitPrice: r.unitPrice 
+        };
+      }
+      itemGroups[key].totalQty += r.qty;
     });
+
+    const newReq: Requirement = {
+      id: `REQ-MERGE-${now}`,
+      materialCode: selectedReqs.length === 1 ? first.materialCode : 'MULTIPLE',
+      name: `采购申请汇总`,
+      spec: selectedReqs.length === 1 ? first.spec : '混合规格',
+      qty: totalQty,
+      assignedQty: 0,
+      unitPrice: totalQty > 0 ? totalPrice / totalQty : 0,
+      status: ReqStatus.APPROVED,
+      createdAt: new Date().toLocaleString(),
+      creator: '系统合并',
+      items: Object.values(itemGroups).map((g, idx) => ({
+        id: `LI-${now}-${idx}`,
+        materialCode: g.materialCode,
+        materialName: g.materialName,
+        spec: g.spec,
+        unit: '个',
+        qty: g.totalQty,
+        unitPrice: g.unitPrice
+      }))
+    };
+
+    const newLineage: LineageRelation = {
+      id: `L-MERGE-${now}`,
+      type: 'REQ_MERGE',
+      sourceIds: selectedReqs.map(i => i.id),
+      targetIds: [newReq.id],
+      qty: totalQty,
+      timestamp: new Date().toLocaleString(),
+    };
 
     const updatedReqs = requirements.map(req => {
       if (ids.includes(req.id)) {
@@ -169,8 +237,8 @@ export default function App() {
       return req;
     });
 
-    setRequirements([...updatedReqs, ...newReqs]);
-    setLineage([...lineage, ...newLineages]);
+    setRequirements([...updatedReqs, newReq]);
+    setLineage([...lineage, newLineage]);
     setMergeModalOpen(false);
     setMergeTargetIds([]);
   };
@@ -193,53 +261,66 @@ export default function App() {
     setMergeModalOpen(true);
   };
 
-  const handleViewDoc = (doc: Requirement | Plan, type: 'REQ' | 'PLAN') => {
-    setViewingDoc(doc);
-    setCurrentView(type === 'REQ' ? 'VIEW_REQ' : 'VIEW_PLAN');
+  const handleViewDoc = (doc: Requirement | Plan | Subcontract | ProjectApproval, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
+    setViewingDoc(doc as any);
+    if (type === 'REQ') setCurrentView('VIEW_REQ');
+    else if (type === 'PLAN') setCurrentView('VIEW_PLAN');
+    else if (type === 'PROJECT') setCurrentView('VIEW_PROJECT');
+    else setCurrentView('VIEW_SUB');
   };
 
   const confirmMergePlans = () => {
     const ids = mergeTargetIds;
     const selectedPlans = plans.filter(p => ids.includes(p.id));
-    
-    // Group by material properties
-    const groups: Record<string, { items: Plan[], totalQty: number }> = {};
-    selectedPlans.forEach(plan => {
-      const key = `${plan.materialCode}|${plan.name}|${plan.spec}`;
-      if (!groups[key]) {
-        groups[key] = { items: [], totalQty: 0 };
-      }
-      groups[key].items.push(plan);
-      groups[key].totalQty += plan.qty;
-    });
+    if (selectedPlans.length === 0) return;
 
-    const newPlans: Plan[] = [];
-    const newLineages: LineageRelation[] = [];
     const now = Date.now();
+    const totalQty = selectedPlans.reduce((sum, p) => sum + p.qty, 0);
+    const first = selectedPlans[0];
 
-    Object.values(groups).forEach((group, idx) => {
-      const first = group.items[0];
-      const newPlan: Plan = {
-        id: `PLN-MERGE-${now}-${idx}`,
-        reqLineId: first.reqLineId, // Note: if multiple reqLineIds, we just take the first one or handle differently
-        materialCode: first.materialCode,
-        name: first.name,
-        spec: first.spec,
-        qty: group.totalQty,
-        status: PlanStatus.DRAFT,
-        createdAt: new Date().toLocaleString(),
-      };
-      newPlans.push(newPlan);
-
-      newLineages.push({
-        id: `L-PLAN-MERGE-${now}-${idx}`,
-        type: 'PLAN_MERGE',
-        sourceIds: group.items.map(i => i.id),
-        targetIds: [newPlan.id],
-        qty: group.totalQty,
-        timestamp: new Date().toLocaleString(),
-      });
+    // Group by material properties for line items
+    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, totalQty: number }> = {};
+    selectedPlans.forEach(p => {
+      const key = `${p.materialCode}|${p.name}|${p.spec}`;
+      if (!itemGroups[key]) {
+        itemGroups[key] = { 
+          materialCode: p.materialCode, 
+          materialName: p.name, 
+          spec: p.spec, 
+          totalQty: 0 
+        };
+      }
+      itemGroups[key].totalQty += p.qty;
     });
+
+    const newPlan: Plan = {
+      id: `PLN-MERGE-${now}`,
+      reqLineId: first.reqLineId,
+      materialCode: selectedPlans.length === 1 ? first.materialCode : 'MULTIPLE',
+      name: `[合并汇总] ${first.name}${selectedPlans.length > 1 ? ` (多物料汇总)` : ''}`,
+      spec: selectedPlans.length === 1 ? first.spec : '混合规格',
+      qty: totalQty,
+      status: PlanStatus.APPROVED,
+      createdAt: new Date().toLocaleString(),
+      items: Object.values(itemGroups).map((g, idx) => ({
+        id: `LI-${now}-${idx}`,
+        materialCode: g.materialCode,
+        materialName: g.materialName,
+        spec: g.spec,
+        unit: '个',
+        qty: g.totalQty,
+        unitPrice: 0
+      }))
+    };
+
+    const newLineage: LineageRelation = {
+      id: `L-PLAN-MERGE-${now}`,
+      type: 'PLAN_MERGE',
+      sourceIds: selectedPlans.map(i => i.id),
+      targetIds: [newPlan.id],
+      qty: totalQty,
+      timestamp: new Date().toLocaleString(),
+    };
 
     const updatedPlans = plans.map(p => {
       if (ids.includes(p.id)) {
@@ -248,83 +329,127 @@ export default function App() {
       return p;
     });
 
-    setPlans([...updatedPlans, ...newPlans]);
-    setLineage([...lineage, ...newLineages]);
+    setPlans([...updatedPlans, newPlan]);
+    setLineage([...lineage, newLineage]);
     setMergeModalOpen(false);
     setMergeTargetIds([]);
   };
 
-  const confirmSplit = (splits: number[]) => {
+  const confirmSplit = (itemSplits: Record<string, number[]>) => {
     if (!splitTargetId) return;
+    const now = Date.now();
 
     if (splitType === 'REQ') {
       const target = requirements.find(r => r.id === splitTargetId);
       if (!target) return;
 
-      const newReqs: Requirement[] = splits.map((qty, idx) => ({
-        id: `REQ-SPLIT-${Date.now()}-${idx}`,
-        materialCode: target.materialCode,
-        name: target.name,
-        spec: target.spec,
-        qty: qty,
+      // itemSplits[itemId] = [remainingQty, extractedQty]
+      const remainingItems: any[] = [];
+      const extractedItems: any[] = [];
+
+      const items = target.items && target.items.length > 0 
+        ? target.items 
+        : [{ id: 'DEFAULT', materialName: target.name, materialCode: target.materialCode, spec: target.spec, qty: target.qty, unit: '个', unitPrice: target.unitPrice }];
+
+      items.forEach(item => {
+        const [remain, extract] = itemSplits[item.id] || [item.qty, 0];
+        if (remain > 0) {
+          remainingItems.push({ ...item, qty: remain });
+        }
+        if (extract > 0) {
+          extractedItems.push({ ...item, id: `LI-EXTRACT-${now}-${item.id}`, qty: extract });
+        }
+      });
+
+      const updatedTarget: Requirement = {
+        ...target,
+        qty: remainingItems.reduce((sum, i) => sum + i.qty, 0),
+        items: remainingItems,
+        status: remainingItems.length > 0 ? target.status : ReqStatus.COMPLETED // If nothing left, mark as completed/split
+      };
+
+      const newReq: Requirement | null = extractedItems.length > 0 ? {
+        id: `REQ-SPLIT-${now}`,
+        materialCode: extractedItems.length === 1 ? extractedItems[0].materialCode : 'MULTIPLE',
+        name: `采购申请拆分`,
+        spec: extractedItems.length === 1 ? extractedItems[0].spec : '混合规格',
+        qty: extractedItems.reduce((sum, i) => sum + i.qty, 0),
         assignedQty: 0,
         unitPrice: target.unitPrice,
         status: ReqStatus.DRAFT,
         createdAt: new Date().toLocaleString(),
         creator: '系统拆分',
-      }));
+        items: extractedItems
+      } : null;
 
-      const updatedReqs = requirements.map(req => {
-        if (req.id === splitTargetId) {
-          return { ...req, status: ReqStatus.SPLIT };
-        }
-        return req;
-      });
-
-      setRequirements([...updatedReqs, ...newReqs]);
+      const updatedReqs = requirements.map(req => req.id === splitTargetId ? updatedTarget : req);
+      setRequirements(newReq ? [...updatedReqs, newReq] : updatedReqs);
       
-      const newLineage: LineageRelation = {
-        id: `L-REQ-SPLIT-${Date.now()}`,
-        type: 'REQ_SPLIT',
-        sourceIds: [splitTargetId],
-        targetIds: newReqs.map(r => r.id),
-        qty: target.qty,
-        timestamp: new Date().toLocaleString(),
-      };
-      setLineage([...lineage, newLineage]);
+      if (newReq) {
+        const newLineage: LineageRelation = {
+          id: `L-REQ-SPLIT-${now}`,
+          type: 'REQ_SPLIT',
+          sourceIds: [splitTargetId],
+          targetIds: [newReq.id],
+          qty: newReq.qty,
+          timestamp: new Date().toLocaleString(),
+        };
+        setLineage([...lineage, newLineage]);
+      }
     } else {
       const target = plans.find(p => p.id === splitTargetId);
       if (!target) return;
 
-      const newPlans: Plan[] = splits.map((qty, idx) => ({
-        id: `PLN-SPLIT-${Date.now()}-${idx}`,
-        reqLineId: target.reqLineId,
-        materialCode: target.materialCode,
-        name: target.name,
-        spec: target.spec,
-        qty: qty,
-        status: PlanStatus.DRAFT,
-        createdAt: new Date().toLocaleString(),
-      }));
+      const remainingItems: any[] = [];
+      const extractedItems: any[] = [];
 
-      const updatedPlans = plans.map(p => {
-        if (p.id === splitTargetId) {
-          return { ...p, status: PlanStatus.SPLIT };
+      const items = target.items && target.items.length > 0 
+        ? target.items 
+        : [{ id: 'DEFAULT', materialName: target.name, materialCode: target.materialCode, spec: target.spec, qty: target.qty, unit: '个', unitPrice: 0 }];
+
+      items.forEach(item => {
+        const [remain, extract] = itemSplits[item.id] || [item.qty, 0];
+        if (remain > 0) {
+          remainingItems.push({ ...item, qty: remain });
         }
-        return p;
+        if (extract > 0) {
+          extractedItems.push({ ...item, id: `LI-EXTRACT-${now}-${item.id}`, qty: extract });
+        }
       });
 
-      setPlans([...updatedPlans, ...newPlans]);
-      
-      const newLineage: LineageRelation = {
-        id: `L-PLAN-SPLIT-${Date.now()}`,
-        type: 'PLAN_SPLIT',
-        sourceIds: [splitTargetId],
-        targetIds: newPlans.map(p => p.id),
-        qty: target.qty,
-        timestamp: new Date().toLocaleString(),
+      const updatedTarget: Plan = {
+        ...target,
+        qty: remainingItems.reduce((sum, i) => sum + i.qty, 0),
+        items: remainingItems,
+        status: remainingItems.length > 0 ? target.status : PlanStatus.SPLIT
       };
-      setLineage([...lineage, newLineage]);
+
+      const newPlan: Plan | null = extractedItems.length > 0 ? {
+        id: `PLN-SPLIT-${now}`,
+        reqLineId: target.reqLineId,
+        materialCode: extractedItems.length === 1 ? extractedItems[0].materialCode : 'MULTIPLE',
+        name: extractedItems.length === 1 ? extractedItems[0].materialName : `[拆分] ${target.name}`,
+        spec: extractedItems.length === 1 ? extractedItems[0].spec : '混合规格',
+        qty: extractedItems.reduce((sum, i) => sum + i.qty, 0),
+        status: PlanStatus.DRAFT,
+        createdAt: new Date().toLocaleString(),
+        items: extractedItems
+      } : null;
+
+      const updatedPlans = plans.map(p => p.id === splitTargetId ? updatedTarget : p);
+      setPlans(newPlan ? [...updatedPlans, newPlan] : updatedPlans);
+      
+      if (newPlan) {
+        const newLineage: LineageRelation = {
+          id: `L-PLAN-SPLIT-${now}`,
+          type: 'PLAN_SPLIT',
+          sourceIds: [splitTargetId],
+          targetIds: [newPlan.id],
+          qty: newPlan.qty,
+          timestamp: new Date().toLocaleString(),
+        };
+        setLineage([...lineage, newLineage]);
+      }
     }
     
     setSplitModalOpen(false);
@@ -342,29 +467,101 @@ export default function App() {
   };
 
   const handleSubcontract = (ids: string[]) => {
-    const newSub: Subcontract = {
-      id: `SUB-${Date.now()}`,
-      name: `采购包-${subcontracts.length + 1}`,
-      planIds: ids,
-      status: '进行中',
-      createdAt: new Date().toLocaleString(),
-    };
+    const selected = plans.filter(p => ids.includes(p.id));
+    setSubcontractTargetPlans(selected);
+    setSubcontractModalOpen(true);
+  };
 
-    const updatedPlans = plans.map(p => {
-      if (ids.includes(p.id)) {
-        return { ...p, status: PlanStatus.SUBCONTRACTED };
-      }
-      return p;
+  const confirmSubcontract = (name: string, selectedItems: { id: string, qty: number }[]) => {
+    const now = Date.now();
+    const subcontractItems: any[] = [];
+    const itemIds = selectedItems.map(i => i.id);
+    const itemQtyMap = selectedItems.reduce((acc, curr) => {
+      acc[curr.id] = curr.qty;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const updatedPlans = plans.map(plan => {
+      if (!plan.items) return plan;
+      
+      const itemsInThisPlan = plan.items.filter(item => itemIds.includes(item.id));
+      if (itemsInThisPlan.length === 0) return plan;
+
+      const newItems = plan.items.map(item => {
+        if (itemIds.includes(item.id)) {
+          const extractQty = itemQtyMap[item.id];
+          subcontractItems.push({ ...item, qty: extractQty });
+          return { ...item, qty: item.qty - extractQty };
+        }
+        return item;
+      }).filter(item => item.qty > 0);
+
+      return {
+        ...plan,
+        items: newItems,
+        qty: newItems.reduce((sum, i) => sum + i.qty, 0),
+        status: newItems.length === 0 ? PlanStatus.SUBCONTRACTED : plan.status
+      };
     });
 
-    setPlans(updatedPlans);
+    const newSub: Subcontract = {
+      id: `SUB-${now}`,
+      name: name,
+      planIds: Array.from(new Set(subcontractTargetPlans.map(p => p.id))),
+      status: '进行中',
+      createdAt: new Date().toLocaleString(),
+      items: subcontractItems
+    };
+
     setSubcontracts([...subcontracts, newSub]);
+    setPlans(updatedPlans);
+    setSubcontractModalOpen(false);
+    setSubcontractTargetPlans([]);
     setCurrentView('SUB_POOL');
+
+    // Lineage
+    const newLineage: LineageRelation = {
+      id: `L-SUB-${now}`,
+      type: 'PLAN_TO_SUB' as any,
+      sourceIds: subcontractTargetPlans.map(p => p.id),
+      targetIds: [newSub.id],
+      qty: subcontractItems.reduce((sum, i) => sum + i.qty, 0),
+      timestamp: new Date().toLocaleString(),
+    };
+    setLineage([...lineage, newLineage]);
   };
 
   const handleSaveReq = (req: Requirement) => {
     setRequirements([req, ...requirements]);
     setCurrentView('REQ_APP');
+  };
+
+  const handleUpdateDoc = (updatedDoc: Requirement | Plan | Subcontract) => {
+    if (updatedDoc.id.startsWith('REQ')) {
+      setRequirements(requirements.map(r => r.id === updatedDoc.id ? updatedDoc as Requirement : r));
+    } else if (updatedDoc.id.startsWith('PLN')) {
+      setPlans(plans.map(p => p.id === updatedDoc.id ? updatedDoc as Plan : p));
+    } else {
+      setSubcontracts(subcontracts.map(s => s.id === updatedDoc.id ? updatedDoc as Subcontract : s));
+    }
+    setViewingDoc(updatedDoc);
+  };
+
+  const handleSaveProject = (project: ProjectApproval) => {
+    setProjects(prev => [...prev, project]);
+    setCurrentView('PROJECT_APP');
+  };
+
+  const handleApprove = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
+    if (type === 'REQ') {
+      setRequirements(requirements.map(r => r.id === id ? { ...r, status: ReqStatus.APPROVED } : r));
+    } else if (type === 'PLAN') {
+      setPlans(plans.map(p => p.id === id ? { ...p, status: PlanStatus.APPROVED } : p));
+    } else if (type === 'PROJECT') {
+      setProjects(projects.map(p => p.id === id ? { ...p, status: '审核通过' } : p));
+    } else if (type === 'SUB') {
+      setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核通过' } : s));
+    }
   };
 
   return (
@@ -384,8 +581,8 @@ export default function App() {
             <TopNavItem icon={<Grid className="w-4 h-4" />} />
             <div className="h-4 w-[1px] bg-white/20 mx-2" />
             <TopMenuLink label="采购需求" active={currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ'} onClick={() => setCurrentView('REQ_APP')} />
-            <TopMenuLink label="采购计划" active={currentView === 'PLAN_POOL'} onClick={() => setCurrentView('PLAN_POOL')} />
-            <TopMenuLink label="采购立项" active={false} />
+            <TopMenuLink label="采购计划" active={currentView === 'PLAN_POOL' || currentView === 'SUB_POOL'} onClick={() => setCurrentView('PLAN_POOL')} />
+            <TopMenuLink label="采购立项" active={currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT'} onClick={() => setCurrentView('PROJECT_APP')} />
             <TopMenuLink label="招标采购" active={false} />
             <TopMenuLink icon={<Menu className="w-4 h-4" />} />
           </nav>
@@ -415,7 +612,8 @@ export default function App() {
               {currentView === 'DASHBOARD' ? '工作台' : 
                currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ' ? '采购需求' : 
                currentView === 'PLAN_POOL' ? '采购计划' : 
-               currentView === 'SUB_POOL' ? '分包管理' : '血缘追溯'}
+               currentView === 'SUB_POOL' ? '分包管理' : 
+               currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT' ? '采购立项' : '血缘追溯'}
             </span>
             <Menu className="w-3 h-3 ml-auto text-erp-text-sub cursor-pointer" />
           </div>
@@ -456,6 +654,15 @@ export default function App() {
                   onClick={() => setCurrentView('SUB_POOL')}
                 />
               </>
+            ) : currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT' ? (
+              <>
+                <SideNavItem 
+                  icon={<ClipboardList className="w-4 h-4" />} 
+                  label="采购立项申请" 
+                  active={currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT'}
+                  onClick={() => setCurrentView('PROJECT_APP')}
+                />
+              </>
             ) : (
               <SideNavItem 
                 icon={<SearchCode className="w-4 h-4" />} 
@@ -471,31 +678,7 @@ export default function App() {
           {/* Content Header / Toolbar */}
           <div className="h-12 px-4 border-b border-erp-border flex items-center justify-between bg-white shrink-0">
             <div className="flex items-center space-x-2">
-              {currentView === 'CREATE_REQ' && (
-                <>
-                  <button 
-                    onClick={() => setCurrentView('REQ_APP')}
-                    className="text-xs px-6 py-1.5 rounded-[2px] border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors bg-white"
-                  >
-                    回到第一步
-                  </button>
-                  <button 
-                    onClick={() => setCurrentView('REQ_APP')}
-                    className="text-xs px-6 py-1.5 rounded-[2px] border border-red-500 text-red-500 hover:bg-red-50 transition-colors bg-white"
-                  >
-                    终止流程
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const btn = document.getElementById('req-submit-btn');
-                      if (btn) btn.click();
-                    }}
-                    className="text-xs px-6 py-1.5 bg-[#2196F3] text-white rounded-[2px] hover:bg-blue-600 font-medium"
-                  >
-                    提交申请
-                  </button>
-                </>
-              )}
+              {/* Header buttons removed, moved to component footer */}
             </div>
 
             {(currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'PLAN_POOL') && (
@@ -554,6 +737,7 @@ export default function App() {
                     requirements={requirements} 
                     onCreateNew={() => setCurrentView('CREATE_REQ')}
                     onView={(req) => handleViewDoc(req, 'REQ')}
+                    onApprove={(id) => handleApprove(id, 'REQ')}
                   />
                 </motion.div>
               )}
@@ -564,6 +748,8 @@ export default function App() {
                     type="REQ" 
                     lineage={lineage}
                     onClose={() => setCurrentView('REQ_APP')} 
+                    onUpdate={handleUpdateDoc}
+                    onApprove={(id) => handleApprove(id, 'REQ')}
                   />
                 </motion.div>
               )}
@@ -574,6 +760,8 @@ export default function App() {
                     type="PLAN" 
                     lineage={lineage}
                     onClose={() => setCurrentView('PLAN_POOL')} 
+                    onUpdate={handleUpdateDoc}
+                    onApprove={(id) => handleApprove(id, 'PLAN')}
                   />
                 </motion.div>
               )}
@@ -586,6 +774,7 @@ export default function App() {
                     onMerge={handleMergeReqs}
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
+                    onApprove={(id) => handleApprove(id, 'REQ')}
                   />
                 </motion.div>
               )}
@@ -604,6 +793,11 @@ export default function App() {
                     onMerge={handleMergePlans}
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
+                    onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onPickRequirements={(targetId) => {
+                      setPickReqTargetId(targetId);
+                      setPickReqModalOpen(true);
+                    }}
                   />
                 </motion.div>
               )}
@@ -611,7 +805,55 @@ export default function App() {
                 <motion.div key="sub" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <SubcontractPool 
                     subcontracts={subcontracts} 
+                    lineage={lineage}
                     onBack={() => setCurrentView('PLAN_POOL')} 
+                    onView={(sub) => handleViewDoc(sub, 'SUB')}
+                    onApprove={(id) => handleApprove(id, 'SUB')}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'PROJECT_APP' && (
+                <motion.div key="project" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <ProjectApprovalPool 
+                    projects={projects} 
+                    onCreate={() => setCurrentView('CREATE_PROJECT')}
+                    onView={(p) => handleViewDoc(p, 'PROJECT')} 
+                    onApprove={(id) => handleApprove(id, 'PROJECT')}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'CREATE_PROJECT' && (
+                <motion.div key="create-project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} className="h-full">
+                  <CreateProjectApproval 
+                    onClose={() => setCurrentView('PROJECT_APP')} 
+                    onSave={handleSaveProject}
+                    onApprove={(id) => handleApprove(id, 'PROJECT')}
+                    plans={plans}
+                    subcontracts={subcontracts}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'VIEW_PROJECT' && viewingDoc && (
+                <motion.div key="view-project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} className="h-full">
+                  <CreateProjectApproval 
+                    onClose={() => setCurrentView('PROJECT_APP')} 
+                    onSave={handleSaveProject}
+                    onApprove={(id) => handleApprove(id, 'PROJECT')}
+                    plans={plans}
+                    subcontracts={subcontracts}
+                    project={viewingDoc as any}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'VIEW_SUB' && viewingDoc && (
+                <motion.div key="view-sub" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+                  <ViewDocument 
+                    document={viewingDoc} 
+                    type="SUB" 
+                    lineage={lineage}
+                    onClose={() => setCurrentView('SUB_POOL')} 
+                    onUpdate={handleUpdateDoc}
+                    onApprove={(id) => handleApprove(id, 'SUB')}
                   />
                 </motion.div>
               )}
@@ -668,6 +910,27 @@ export default function App() {
             ? requirements.filter(r => mergeTargetIds.includes(r.id))
             : plans.filter(p => mergeTargetIds.includes(p.id))
         }
+      />
+
+      <SubcontractModal 
+        isOpen={subcontractModalOpen}
+        onClose={() => setSubcontractModalOpen(false)}
+        onConfirm={confirmSubcontract}
+        selectedPlans={subcontractTargetPlans}
+      />
+
+      <PickRequirementModal 
+        isOpen={pickReqModalOpen}
+        onClose={() => {
+          setPickReqModalOpen(false);
+          setPickReqTargetId(undefined);
+        }}
+        onConfirm={(reqs) => {
+          handlePickToPlan(reqs.map(r => r.id), pickReqTargetId);
+          setPickReqModalOpen(false);
+          setPickReqTargetId(undefined);
+        }}
+        requirements={requirements}
       />
     </div>
   );

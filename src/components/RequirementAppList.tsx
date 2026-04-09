@@ -5,16 +5,17 @@
 
 import React, { useState } from 'react';
 import { Requirement, ReqStatus } from '../types';
-import { Search, Filter, Plus, Pencil, Eye, FileText, ChevronRight, X } from 'lucide-react';
+import { Search, Filter, Plus, Pencil, Eye, FileText, ChevronRight, X, CheckCircle2 } from 'lucide-react';
 import { SearchForm } from './SearchForm';
 
 interface RequirementAppListProps {
   requirements: Requirement[];
   onCreateNew: () => void;
   onView: (req: Requirement) => void;
+  onApprove?: (id: string) => void;
 }
 
-export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirements, onCreateNew, onView }) => {
+export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirements, onCreateNew, onView, onApprove }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSearch, setShowSearch] = useState(true);
 
@@ -27,7 +28,7 @@ export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirem
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Search Form */}
       {showSearch && (
-        <SearchForm onClose={() => setShowSearch(false)} />
+        <SearchForm type="REQ" onClose={() => setShowSearch(false)} />
       )}
 
       {/* Action Bar */}
@@ -89,14 +90,6 @@ export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirem
                 <td className="px-4 py-2.5">
                   <div className="flex flex-col">
                     <span className="text-gray-800 font-medium truncate max-w-[250px]">{req.name}</span>
-                    <div className="flex items-center space-x-2 mt-0.5">
-                      <span className="text-[10px] text-gray-400 bg-gray-50 px-1 rounded border border-gray-100">
-                        {req.materialCode}
-                      </span>
-                      <span className="text-[10px] text-erp-text-sub">
-                        数量: <span className="font-bold text-gray-700">{req.qty}</span>
-                      </span>
-                    </div>
                   </div>
                 </td>
                 <td className="px-4 py-2.5">{req.creator}</td>
@@ -122,6 +115,15 @@ export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirem
                     </button>
                     {req.status === ReqStatus.DRAFT && (
                       <button className="text-erp-secondary hover:text-blue-700" title="编辑"><Pencil className="w-3.5 h-3.5" /></button>
+                    )}
+                    {onApprove && req.status !== ReqStatus.APPROVED && (
+                      <button 
+                        onClick={() => onApprove(req.id)}
+                        className="text-green-500 hover:text-green-700" 
+                        title="审核通过"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </td>

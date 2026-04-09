@@ -27,6 +27,7 @@ interface DashboardProps {
     pendingReq: number;
     totalPlan: number;
     totalSub: number;
+    totalProject: number;
   };
 }
 
@@ -37,6 +38,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
     { name: '采购需求', value: stats.totalReq },
     { name: '采购计划', value: stats.totalPlan },
     { name: '采购分包', value: stats.totalSub },
+    { name: '采购立项', value: stats.totalProject },
   ];
 
   const statusData = [
@@ -77,6 +79,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
           icon={<Package className="w-5 h-5 text-green-500" />} 
           trend="+8% 环比上月"
           color="green"
+        />
+        <StatCard 
+          title="采购立项总数" 
+          value={stats.totalProject} 
+          icon={<ClipboardList className="w-5 h-5 text-indigo-500" />} 
+          trend="+15% 环比上月"
+          color="indigo"
         />
       </div>
 
@@ -177,6 +186,7 @@ function StatCard({ title, value, icon, trend, color }: { title: string, value: 
     orange: 'bg-orange-50 text-orange-600',
     purple: 'bg-purple-50 text-purple-600',
     green: 'bg-green-50 text-green-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
   };
 
   return (

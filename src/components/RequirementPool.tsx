@@ -4,10 +4,39 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Requirement, ReqStatus, LineageRelation } from '../types';
+import { Requirement, ReqStatus, LineageRelation, MOCK_INVENTORY } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, Plus, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History } from 'lucide-react';
+import { Search, Filter, Plus, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { SearchForm } from './SearchForm';
+
+const InventoryCheck: React.FC<{ materialCode: string; requiredQty: number }> = ({ materialCode, requiredQty }) => {
+  const item = MOCK_INVENTORY.find(i => i.materialCode === materialCode);
+  if (!item) return null;
+
+  const isShortage = item.stockQty < requiredQty;
+  const isBelowSafety = item.stockQty < item.safetyStock;
+
+  return (
+    <div className="flex items-center space-x-1.5 mt-1">
+      {isShortage ? (
+        <div className="flex items-center space-x-1 text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
+          <AlertTriangle className="w-3 h-3" />
+          <span>库存不足 (现存: {item.stockQty}{item.unit})</span>
+        </div>
+      ) : isBelowSafety ? (
+        <div className="flex items-center space-x-1 text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">
+          <AlertTriangle className="w-3 h-3" />
+          <span>低于安全库存 (现存: {item.stockQty}{item.unit})</span>
+        </div>
+      ) : (
+        <div className="flex items-center space-x-1 text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+          <CheckCircle2 className="w-3 h-3" />
+          <span>库存充足 (现存: {item.stockQty}{item.unit})</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface RequirementPoolProps {
   requirements: Requirement[];
@@ -16,6 +45,7 @@ interface RequirementPoolProps {
   onMerge: (ids: string[]) => void;
   onSplit: (id: string) => void;
   onView: (req: Requirement) => void;
+  onApprove: (id: string) => void;
 }
 
 export const RequirementPool: React.FC<RequirementPoolProps> = ({
@@ -25,8 +55,13 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
   onMerge,
   onSplit,
   onView,
+  onApprove,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  const activeRequirements = useMemo(() => {
+    return requirements.filter(r => r.status !== ReqStatus.MERGED && r.status !== ReqStatus.COMPLETED);
+  }, [requirements]);
 
   const hasHistory = (id: string) => lineage.some(l => l.targetIds.includes(id));
 
@@ -37,7 +72,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Search Form */}
-      <SearchForm />
+      <SearchForm type="REQ" />
 
       {/* Action Bar */}
       <div className="bg-gray-50 border-b border-erp-border px-4 py-2 flex items-center justify-between">
@@ -46,19 +81,35 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
             {selectedIds.length > 0 ? `已选择 ${selectedIds.length} 项` : '未选择项'}
           </span>
           <button
-            onClick={() => onPickToPlan(selectedIds)}
-            disabled={selectedIds.length === 0}
+            onClick={() => {
+              onPickToPlan(selectedIds);
+              setSelectedIds([]);
+            }}
+            disabled={
+              selectedIds.length === 0 || 
+              requirements.filter(r => selectedIds.includes(r.id)).some(r => r.status !== ReqStatus.APPROVED)
+            }
             className={`px-4 py-1.5 rounded-[2px] text-xs font-medium transition-colors ${
-              selectedIds.length === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
+              (selectedIds.length === 0 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.status !== ReqStatus.APPROVED)) 
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                : 'bg-[#2196F3] text-white hover:bg-blue-600'
             }`}
           >
             <span>生成计划</span>
           </button>
           <button
-            onClick={() => onMerge(selectedIds)}
-            disabled={selectedIds.length < 2}
+            onClick={() => {
+              onMerge(selectedIds);
+              setSelectedIds([]);
+            }}
+            disabled={
+              selectedIds.length < 2 || 
+              requirements.filter(r => selectedIds.includes(r.id)).some(r => r.status !== ReqStatus.APPROVED)
+            }
             className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-              selectedIds.length < 2 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
+              (selectedIds.length < 2 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.status !== ReqStatus.APPROVED))
+                ? 'border-gray-200 text-gray-300 cursor-not-allowed' 
+                : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
             }`}
           >
             <span>合并需求</span>
@@ -76,21 +127,10 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
           </button>
         </div>
         
-        {/* Selection Summary (Aggregated Material Info) */}
+        {/* Selection Summary (Hidden per user request) */}
         {selectedIds.length > 0 && (
-          <div className="flex items-center space-x-6 px-4 py-1 bg-blue-50 rounded border border-blue-100">
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] text-gray-500">已选物料汇总:</span>
-              <span className="text-xs font-bold text-blue-600">
-                {Array.from(new Set(requirements.filter(r => selectedIds.includes(r.id)).map(r => r.materialCode))).length} 种
-              </span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] text-gray-500">数量合计:</span>
-              <span className="text-xs font-bold text-blue-600">
-                {requirements.filter(r => selectedIds.includes(r.id)).reduce((sum, r) => sum + r.qty, 0).toFixed(2)}
-              </span>
-            </div>
+          <div className="flex items-center space-x-2 px-4 py-1 bg-blue-50 rounded border border-blue-100">
+            <span className="text-[10px] text-gray-500">已选择 {selectedIds.length} 项单据</span>
             <button onClick={() => setSelectedIds([])} className="text-gray-400 hover:text-gray-600 ml-2">
               <X className="w-3 h-3" />
             </button>
@@ -107,9 +147,9 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary"
-                  checked={selectedIds.length === requirements.length && requirements.length > 0}
+                  checked={selectedIds.length === activeRequirements.length && activeRequirements.length > 0}
                   onChange={(e) =>
-                    setSelectedIds(e.target.checked ? requirements.map((r) => r.id) : [])
+                    setSelectedIds(e.target.checked ? activeRequirements.map((r) => r.id) : [])
                   }
                 />
               </th>
@@ -122,7 +162,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-erp-border">
-            {requirements.map((req, index) => (
+            {activeRequirements.map((req, index) => (
               <tr
                 key={req.id}
                 className={`hover:bg-blue-50/30 transition-colors text-xs ${
@@ -152,7 +192,10 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-2.5 truncate max-w-[300px]">{req.name}</td>
+                <td className="px-4 py-2.5">
+                  <div className="font-medium text-gray-800">{req.name}</div>
+                  <InventoryCheck materialCode={req.materialCode} requiredQty={req.qty} />
+                </td>
                 <td className="px-4 py-2.5 text-erp-text-sub">{req.creator || '系统管理部'}</td>
                 <td className="px-4 py-2.5">
                   <span className={`text-[11px] ${
@@ -165,22 +208,23 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 </td>
                 <td className="px-4 py-2.5 text-center">
                   <div className="flex items-center justify-center space-x-2">
-                    {req.status === ReqStatus.DRAFT ? (
-                      <button 
-                        onClick={() => onView(req)}
-                        className="text-erp-secondary hover:text-blue-700" 
-                        title="编辑"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    ) : req.status === ReqStatus.PENDING ? (
-                      <button 
-                        onClick={() => onView(req)}
-                        className="text-erp-secondary hover:text-blue-700" 
-                        title="审核"
-                      >
-                        <Settings className="w-3.5 h-3.5" />
-                      </button>
+                    {req.status !== ReqStatus.APPROVED ? (
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => onView(req)}
+                          className="text-erp-secondary hover:text-blue-700" 
+                          title="编辑"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => onApprove(req.id)}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     ) : (
                       <button 
                         onClick={() => onView(req)}

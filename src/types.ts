@@ -27,6 +27,16 @@ export enum PlanStatus {
   CANCELLED = '已取消',
 }
 
+export interface LineItem {
+  id: string;
+  materialCode: string;
+  materialName: string;
+  spec: string;
+  unit: string;
+  qty: number;
+  unitPrice: number;
+}
+
 export interface Requirement {
   id: string;
   materialCode: string;
@@ -38,6 +48,7 @@ export interface Requirement {
   status: ReqStatus;
   createdAt: string;
   creator: string;
+  items?: LineItem[];
 }
 
 export interface Plan {
@@ -50,14 +61,16 @@ export interface Plan {
   assignedTo?: string;
   status: PlanStatus;
   createdAt: string;
+  items?: LineItem[];
 }
 
 export interface Subcontract {
   id: string;
   name: string;
   planIds: string[];
-  status: '进行中' | '已完成';
+  status: '编辑中' | '待审核' | '审核通过' | '审核不通过' | '进行中' | '已完成';
   createdAt: string;
+  items?: LineItem[];
 }
 
 export interface LineageRelation {
@@ -68,3 +81,40 @@ export interface LineageRelation {
   qty: number;
   timestamp: string;
 }
+
+export interface LotInfo {
+  id: string;
+  name: string;
+  content: string;
+  budget: number;
+  items: LineItem[];
+}
+
+export interface ProjectApproval {
+  id: string;
+  name: string;
+  planId: string;
+  status: '编辑中' | '待审核' | '审核通过' | '审核不通过';
+  createdAt: string;
+  lots: LotInfo[];
+  source: '自筹' | '政府预算补助资金';
+  type: '国有资金控股或占主导地位的依法招标' | '其他情形的采购';
+  location: string;
+  summary: string;
+}
+
+export interface Inventory {
+  materialCode: string;
+  materialName: string;
+  spec: string;
+  stockQty: number;
+  safetyStock: number;
+  unit: string;
+}
+
+export const MOCK_INVENTORY: Inventory[] = [
+  { materialCode: 'M001', materialName: '笔记本电脑', spec: '14寸/i7/16G', stockQty: 5, safetyStock: 10, unit: '台' },
+  { materialCode: 'M002', materialName: '办公椅', spec: '人体工学/黑色', stockQty: 50, safetyStock: 20, unit: '把' },
+  { materialCode: 'M003', materialName: '显示器', spec: '27寸/4K', stockQty: 2, safetyStock: 5, unit: '台' },
+  { materialCode: 'M004', materialName: '机械键盘', spec: '红轴/104键', stockQty: 15, safetyStock: 10, unit: '把' },
+];
