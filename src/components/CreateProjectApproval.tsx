@@ -114,53 +114,65 @@ export const CreateProjectApproval: React.FC<CreateProjectApprovalProps> = ({
     setExpandedSections(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const handlePickPlan = (plan: Plan) => {
-    // Find subcontracts associated with this plan
-    const associatedSubs = subcontracts.filter(sub => sub.planIds.includes(plan.id));
-    
-    let newLots: LotInfo[] = [];
+  const handlePickPlan = (selectedPlans: Plan[]) => {
+    if (selectedPlans.length === 0) return;
 
-    if (associatedSubs.length > 0) {
-      newLots = associatedSubs.map(sub => {
-        // Get all items from the plan that belong to this subcontract
-        const allSubItems = plan.items || [];
-        
-        return {
-          id: `${plan.id}-${sub.id.split('-').pop()}`,
-          name: sub.name,
-          content: sub.name,
-          budget: sub.items?.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0) || 0,
-          items: sub.items && sub.items.length > 0 ? sub.items : allSubItems
-        };
-      });
-    } else {
-      // If no subcontracts exist, create a default lot with all plan items
-      const totalBudget = plan.items?.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0) || 0;
+    let allNewLots: LotInfo[] = [];
+    const planIds: string[] = [];
+    const planNames: string[] = [];
+
+    selectedPlans.forEach(plan => {
+      planIds.push(plan.id);
+      planNames.push(plan.name);
+
+      // Find subcontracts associated with this plan
+      const associatedSubs = subcontracts.filter(sub => sub.planIds.includes(plan.id));
       
-      newLots = [{
-        id: `LOT-${plan.id.split('-').pop()}`,
-        name: `${plan.name}-全量标包`,
-        content: plan.name,
-        budget: totalBudget,
-        items: plan.items || [{
-          id: `LI-${plan.id}`,
-          materialCode: plan.materialCode,
-          materialName: plan.name,
-          spec: plan.spec,
-          qty: plan.qty,
-          unit: '个',
-          unitPrice: 0 // Plan doesn't have unitPrice, default to 0 if no items
-        }],
-        status: '编辑中'
-      }];
-    }
+      if (associatedSubs.length > 0) {
+        const planLots = associatedSubs.map(sub => {
+          // Get all items from the plan that belong to this subcontract
+          const allSubItems = plan.items || [];
+          
+          return {
+            id: `${plan.id}-${sub.id.split('-').pop()}`,
+            name: sub.name,
+            content: sub.name,
+            budget: sub.items?.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0) || 0,
+            items: sub.items && sub.items.length > 0 ? sub.items : allSubItems,
+            status: '编辑中' as const
+          };
+        });
+        allNewLots = [...allNewLots, ...planLots];
+      } else {
+        // If no subcontracts exist, create a default lot with all plan items
+        const totalBudget = plan.items?.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0) || 0;
+        
+        const defaultLot: LotInfo = {
+          id: `LOT-${plan.id.split('-').pop()}`,
+          name: `${plan.name}-全量标包`,
+          content: plan.name,
+          budget: totalBudget,
+          items: plan.items || [{
+            id: `LI-${plan.id}`,
+            materialCode: plan.materialCode,
+            materialName: plan.name,
+            spec: plan.spec,
+            qty: plan.qty,
+            unit: '个',
+            unitPrice: 0
+          }],
+          status: '编辑中'
+        };
+        allNewLots.push(defaultLot);
+      }
+    });
 
     setFormData(prev => ({
       ...prev,
-      planId: plan.id,
-      name: plan.name,
-      lots: newLots,
-      summary: plan.name,
+      planId: planIds.join(', '),
+      name: selectedPlans.length === 1 ? selectedPlans[0].name : `${selectedPlans[0].name}等${selectedPlans.length}个采购计划`,
+      lots: allNewLots,
+      summary: planNames.join('; '),
     }));
     setIsPickModalOpen(false);
   };

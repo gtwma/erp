@@ -5,12 +5,12 @@ import { X, Search, FileText } from 'lucide-react';
 interface PickPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (plan: Plan) => void;
+  onConfirm: (plans: Plan[]) => void;
   plans: Plan[];
 }
 
 export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, onConfirm, plans }) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
   const approvedPlans = plans.filter(p => p.auditStatus === AuditStatus.APPROVED || p.processStatus === PlanProcessStatus.SUBCONTRACTED);
@@ -18,6 +18,12 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
     p.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -51,7 +57,20 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-[11px] text-gray-500 border-b border-gray-200">
-                <th className="px-4 py-2 w-10"></th>
+                <th className="px-4 py-2 w-10 text-center">
+                  <input 
+                    type="checkbox" 
+                    className="rounded-[2px] border-gray-300 text-blue-500 focus:ring-blue-500"
+                    checked={selectedIds.length > 0 && selectedIds.length === filteredPlans.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(filteredPlans.map(p => p.id));
+                      } else {
+                        setSelectedIds([]);
+                      }
+                    }}
+                  />
+                </th>
                 <th className="px-4 py-2 w-12 text-center">序</th>
                 <th className="px-4 py-2">采购计划编号</th>
                 <th className="px-4 py-2">采购计划内容</th>
@@ -62,15 +81,15 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
               {filteredPlans.map((plan, index) => (
                 <tr 
                   key={plan.id} 
-                  className={`text-xs hover:bg-blue-50/30 cursor-pointer ${selectedId === plan.id ? 'bg-blue-50' : ''}`}
-                  onClick={() => setSelectedId(plan.id)}
+                  className={`text-xs hover:bg-blue-50/30 cursor-pointer ${selectedIds.includes(plan.id) ? 'bg-blue-50' : ''}`}
+                  onClick={() => toggleSelection(plan.id)}
                 >
                   <td className="px-4 py-2.5 text-center">
                     <input 
-                      type="radio" 
-                      checked={selectedId === plan.id} 
-                      onChange={() => setSelectedId(plan.id)}
-                      className="text-blue-600 focus:ring-blue-500"
+                      type="checkbox" 
+                      checked={selectedIds.includes(plan.id)} 
+                      onChange={() => toggleSelection(plan.id)}
+                      className="rounded-[2px] border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                   </td>
                   <td className="px-4 py-2.5 text-center text-gray-400">{index + 1}</td>
@@ -90,16 +109,16 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
 
         <div className="p-4 border-t border-gray-100 flex justify-center space-x-3 bg-gray-50">
           <button
-            disabled={!selectedId}
+            disabled={selectedIds.length === 0}
             onClick={() => {
-              const plan = plans.find(p => p.id === selectedId);
-              if (plan) onConfirm(plan);
+              const selectedPlans = plans.filter(p => selectedIds.includes(p.id));
+              onConfirm(selectedPlans);
             }}
             className={`px-8 py-2 rounded-[2px] text-xs font-medium transition-colors ${
-              !selectedId ? 'bg-gray-300 text-white cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
+              selectedIds.length === 0 ? 'bg-gray-300 text-white cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
             }`}
           >
-            确认选择
+            确认选择 ({selectedIds.length})
           </button>
         </div>
       </div>
