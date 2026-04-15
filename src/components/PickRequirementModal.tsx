@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Requirement, AuditStatus, ReqProcessStatus } from '../types';
-import { X, Search, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Search, FileText, CheckCircle2, Search as SearchIcon } from 'lucide-react';
 
 interface PickRequirementModalProps {
   isOpen: boolean;
@@ -42,12 +42,12 @@ export const PickRequirementModal: React.FC<PickRequirementModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-sm shadow-2xl w-full max-w-4xl flex flex-col max-h-[80vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div className="bg-white rounded-sm shadow-2xl w-full max-w-7xl flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-erp-border flex items-center justify-between bg-white">
+        <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between bg-white">
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-5 h-5 text-blue-500" />
+            <CheckCircle2 className="w-4 h-4 text-blue-500" />
             <h3 className="text-sm font-bold text-gray-800">选取采购需求</h3>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -55,68 +55,81 @@ export const PickRequirementModal: React.FC<PickRequirementModalProps> = ({
           </button>
         </div>
 
-        {/* Search */}
-        <div className="p-4 border-b border-erp-border bg-gray-50/50">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="搜索需求单号或内容..."
-              className="w-full pl-10 pr-4 py-1.5 border border-erp-border rounded-[2px] text-xs focus:outline-none focus:border-blue-500 bg-white"
+        {/* Search Bar - Top Right Style */}
+        <div className="px-6 py-3 flex justify-end bg-white border-b border-gray-50">
+          <div className="flex items-center border border-gray-300 rounded-sm overflow-hidden focus-within:border-blue-500 transition-colors">
+            <div className="pl-3 pr-2 py-1.5 bg-white">
+              <SearchIcon className="w-3.5 h-3.5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="请输入需求单号"
+              className="w-64 px-2 py-1.5 text-xs outline-none"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
             />
+            <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 transition-colors">
+              <SearchIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Table */}
-        <div className="flex-1 overflow-auto p-4">
+        {/* Table Content */}
+        <div className="flex-1 overflow-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-white">
-              <tr className="text-[11px] text-gray-500 border-b border-erp-border font-medium bg-gray-50">
-                <th className="px-4 py-2 w-10">
+            <thead>
+              <tr className="bg-[#F8F9FB] text-[11px] text-gray-500 border-b border-gray-200">
+                <th className="w-12 px-4 py-3 text-center">
                   <input 
                     type="checkbox" 
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
                     checked={selectedIds.length === availableRequirements.length && availableRequirements.length > 0}
                     onChange={(e) => setSelectedIds(e.target.checked ? availableRequirements.map(r => r.id) : [])}
                   />
                 </th>
-                <th className="px-4 py-2">需求单号</th>
-                <th className="px-4 py-2">需求内容</th>
-                <th className="px-4 py-2">物料编码</th>
-                <th className="px-4 py-2 text-right">数量</th>
-                <th className="px-4 py-2">单位</th>
+                <th className="w-12 px-2 py-3 text-center">序</th>
+                <th className="px-4 py-3 font-medium">需求单号</th>
+                <th className="px-4 py-3 font-medium">招标项目名称</th>
+                <th className="px-4 py-3 font-medium">标段(包)名称</th>
+                <th className="px-4 py-3 font-medium">标段(包)分类</th>
+                <th className="px-4 py-3 font-medium">招标方式</th>
+                <th className="px-4 py-3 font-medium text-right">合同预算价</th>
+                <th className="px-4 py-3 font-medium text-center">标段(包)状态</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-erp-border">
-              {availableRequirements.map((req) => (
+            <tbody className="divide-y divide-gray-100">
+              {availableRequirements.map((req, index) => (
                 <tr 
                   key={req.id} 
-                  className={`text-xs hover:bg-blue-50/30 transition-colors cursor-pointer ${selectedIds.includes(req.id) ? 'bg-blue-50/50' : ''}`}
+                  className={`text-[11px] hover:bg-blue-50/40 cursor-pointer transition-colors ${selectedIds.includes(req.id) ? 'bg-blue-50/20' : ''}`}
                   onClick={() => toggleSelect(req.id)}
                 >
-                  <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                  <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                     <input 
                       type="checkbox" 
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded-sm border-gray-300 text-blue-600 focus:ring-blue-500"
                       checked={selectedIds.includes(req.id)}
                       onChange={() => toggleSelect(req.id)}
                     />
                   </td>
-                  <td className="px-4 py-2.5 font-mono text-blue-600">{req.id}</td>
-                  <td className="px-4 py-2.5 font-medium text-gray-800">{req.name}</td>
-                  <td className="px-4 py-2.5 text-gray-500">{req.materialCode}</td>
-                  <td className="px-4 py-2.5 text-right font-bold text-gray-700">{req.qty.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-gray-500">个</td>
+                  <td className="px-2 py-3 text-center text-gray-400">{index + 1}</td>
+                  <td className="px-4 py-3 text-blue-600 font-mono">{req.id}</td>
+                  <td className="px-4 py-3 text-gray-800">【采购项目】{req.name}</td>
+                  <td className="px-4 py-3 text-gray-800">{req.name}<span className="text-red-500 ml-1">(网)</span></td>
+                  <td className="px-4 py-3 text-gray-500">材料设备</td>
+                  <td className="px-4 py-3 text-gray-500">公开招标</td>
+                  <td className="px-4 py-3 text-right text-gray-700 font-medium">{(req.qty * (req.unitPrice || 100)).toLocaleString()}元</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">审核通过</span>
+                  </td>
                 </tr>
               ))}
               {availableRequirements.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2 text-gray-400">
-                      <FileText className="w-10 h-10 opacity-20" />
-                      <span className="text-xs">暂无待处理的已审核需求</span>
+                  <td colSpan={9} className="py-20 text-center text-gray-400">
+                    <div className="flex flex-col items-center">
+                      <FileText className="w-10 h-10 mb-2 opacity-20" />
+                      <p className="text-xs">暂无待处理的已审核需求</p>
                     </div>
                   </td>
                 </tr>
@@ -126,19 +139,19 @@ export const PickRequirementModal: React.FC<PickRequirementModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-erp-border flex items-center justify-between bg-gray-50/50">
-          <span className="text-xs text-gray-500">已选择 <span className="font-bold text-blue-600">{selectedIds.length}</span> 项需求</span>
+        <div className="px-6 py-3 border-t border-gray-100 bg-white flex items-center justify-between">
+          <span className="text-[11px] text-gray-500">已选择 <span className="font-bold text-blue-600">{selectedIds.length}</span> 项需求</span>
           <div className="flex items-center space-x-3">
             <button 
               onClick={onClose}
-              className="px-4 py-1.5 border border-gray-300 rounded-[2px] text-xs font-medium text-gray-600 hover:bg-gray-50 bg-white transition-colors"
+              className="px-4 py-1.5 border border-gray-300 rounded-sm text-xs font-medium text-gray-600 hover:bg-gray-50 bg-white transition-colors"
             >
               取消
             </button>
             <button 
               onClick={handleConfirm}
               disabled={selectedIds.length === 0}
-              className={`px-6 py-1.5 rounded-[2px] text-xs font-medium transition-all shadow-sm ${
+              className={`px-6 py-1.5 rounded-sm text-xs font-medium transition-all shadow-sm ${
                 selectedIds.length === 0 
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
                   : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95'

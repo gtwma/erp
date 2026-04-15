@@ -22,9 +22,9 @@ export const SearchForm: React.FC<SearchFormProps> = ({ type = 'REQ', onSearch, 
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const labels = {
-    REQ: { content: '采购需求内容', id: '采购需求编号', person: '需求负责人' },
-    PLAN: { content: '采购计划内容', id: '采购计划编号', person: '计划负责人' },
-    SUB: { content: '分包名称', id: '分包单号', person: '分包负责人' }
+    REQ: { content: '采购需求内容', id: '采购需求编号', person: '需求负责人', reason: '变更/取消理由' },
+    PLAN: { content: '采购计划内容', id: '采购计划编号', person: '计划负责人', reason: '变更/取消理由' },
+    SUB: { content: '分包名称', id: '分包单号', person: '分包负责人', reason: '变更/取消理由' }
   }[type];
 
   const handleInputChange = (field: keyof SearchParams, value: string) => {
@@ -67,6 +67,16 @@ export const SearchForm: React.FC<SearchFormProps> = ({ type = 'REQ', onSearch, 
             className="flex-1 border border-gray-300 rounded-[2px] px-3 py-1.5 text-xs outline-none focus:border-[#2196F3]" 
             value={params.id || ''}
             onChange={e => handleInputChange('id', e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center space-x-4">
+          <label className="w-24 text-right text-xs text-gray-600 shrink-0">{labels.reason}:</label>
+          <input 
+            type="text" 
+            className="flex-1 border border-gray-300 rounded-[2px] px-3 py-1.5 text-xs outline-none focus:border-[#2196F3]" 
+            value={params.reason || ''}
+            onChange={e => handleInputChange('reason', e.target.value)}
           />
         </div>
         

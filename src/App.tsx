@@ -137,11 +137,15 @@ export default function App() {
     if (targetPlanId) {
       setPlans(plans.map(p => {
         if (p.id === targetPlanId) {
-          return {
+          const updatedPlan = {
             ...p,
             qty: p.qty + totalQty,
             items: [...(p.items || []), ...newItems]
           };
+          if (viewingDoc && viewingDoc.id === targetPlanId) {
+            setViewingDoc(updatedPlan);
+          }
+          return updatedPlan;
         }
         return p;
       }));
@@ -180,7 +184,9 @@ export default function App() {
     };
     setLineage([...lineage, newLineage]);
     
-    setCurrentView('PLAN_POOL');
+    if (!targetPlanId) {
+      setCurrentView('PLAN_POOL');
+    }
   };
 
   const handleCreateEmptyPlan = () => {
@@ -715,11 +721,32 @@ export default function App() {
   };
 
   const handleApprove = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
+    const timestamp = new Date().toISOString();
     if (type === 'REQ') {
       setRequirements(requirements.map(r => {
         if (r.id === id) {
+          const newHistory = [...(r.history || [])];
+          if (r.auditStatus === AuditStatus.CHANGE_PENDING) {
+            newHistory.push({
+              id: `H-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'CHANGE',
+              reason: r.changeReason || '',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.APPROVED
+            });
+            return { ...r, auditStatus: AuditStatus.APPROVED, history: newHistory };
+          }
           if (r.auditStatus === AuditStatus.TERMINATE_PENDING) {
-            return { ...r, auditStatus: AuditStatus.TERMINATED, processStatus: ReqProcessStatus.TERMINATED };
+            newHistory.push({
+              id: `H-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'TERMINATE',
+              reason: r.terminationReason || '',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.TERMINATED
+            });
+            return { ...r, auditStatus: AuditStatus.TERMINATED, processStatus: ReqProcessStatus.TERMINATED, history: newHistory };
           }
           return { ...r, auditStatus: AuditStatus.APPROVED };
         }
@@ -728,8 +755,28 @@ export default function App() {
     } else if (type === 'PLAN') {
       setPlans(plans.map(p => {
         if (p.id === id) {
+          const newHistory = [...(p.history || [])];
+          if (p.auditStatus === AuditStatus.CHANGE_PENDING) {
+            newHistory.push({
+              id: `H-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'CHANGE',
+              reason: p.changeReason || '',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.APPROVED
+            });
+            return { ...p, auditStatus: AuditStatus.APPROVED, history: newHistory };
+          }
           if (p.auditStatus === AuditStatus.TERMINATE_PENDING) {
-            return { ...p, auditStatus: AuditStatus.TERMINATED, processStatus: PlanProcessStatus.TERMINATED };
+            newHistory.push({
+              id: `H-${Math.random().toString(36).substr(2, 9)}`,
+              type: 'TERMINATE',
+              reason: p.terminationReason || '',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.TERMINATED
+            });
+            return { ...p, auditStatus: AuditStatus.TERMINATED, processStatus: PlanProcessStatus.TERMINATED, history: newHistory };
           }
           return { ...p, auditStatus: AuditStatus.APPROVED };
         }
@@ -766,6 +813,73 @@ export default function App() {
     } else if (type === 'SUB') {
       setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核不通过' } : s));
     }
+  };
+
+  const handleRemoveRequirement = (planId: string, reqId: string) => {
+    setLineage(prev => prev.map(l => {
+      if (l.targetIds.includes(planId) && l.sourceIds.includes(reqId)) {
+        return {
+          ...l,
+          sourceIds: l.sourceIds.filter(id => id !== reqId)
+        };
+      }
+      return l;
+    }).filter(l => l.sourceIds.length > 0));
+
+    setRequirements(prev => prev.map(r => {
+      if (r.id === reqId) {
+        return { ...r, assignedQty: 0, processStatus: ReqProcessStatus.NORMAL };
+      }
+      return r;
+    }));
+
+    setPlans(prev => prev.map(p => {
+      if (p.id === planId) {
+        const updatedItems = (p.items || []).filter(item => !item.id.includes(reqId));
+        const updatedPlan = { ...p, items: updatedItems, qty: updatedItems.reduce((sum, i) => sum + i.qty, 0) };
+        if (viewingDoc && viewingDoc.id === planId) {
+          setViewingDoc(updatedPlan);
+        }
+        return updatedPlan;
+      }
+      return p;
+    }));
+  };
+
+  const handleRemoveLineItem = (planId: string, itemId: string) => {
+    setPlans(prev => prev.map(p => {
+      if (p.id === planId) {
+        const updatedItems = (p.items || []).filter(item => item.id !== itemId);
+        const updatedPlan = { ...p, items: updatedItems, qty: updatedItems.reduce((sum, i) => sum + i.qty, 0) };
+        if (viewingDoc && viewingDoc.id === planId) {
+          setViewingDoc(updatedPlan);
+        }
+        return updatedPlan;
+      }
+      return p;
+    }));
+  };
+
+  const handleAddLineItem = (planId: string) => {
+    setPlans(prev => prev.map(p => {
+      if (p.id === planId) {
+        const newItem = {
+          id: `PLN-LI-${Date.now()}`,
+          materialCode: 'NEW-MAT',
+          materialName: '新物料',
+          spec: '规格',
+          unit: '个',
+          qty: 1,
+          unitPrice: 0
+        };
+        const updatedPlan = { ...p, items: [...(p.items || []), newItem], qty: (p.qty || 0) + 1 };
+        if (viewingDoc && viewingDoc.id === planId) {
+          setViewingDoc(updatedPlan);
+        }
+        return updatedPlan;
+      }
+      return p;
+    }));
   };
 
   return (
@@ -998,6 +1112,13 @@ export default function App() {
                     onTerminate={handleTerminateDoc}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
                     onReject={(id) => handleReject(id, 'PLAN')}
+                    onAddRequirement={(planId) => {
+                      setPickReqTargetId(planId);
+                      setPickReqModalOpen(true);
+                    }}
+                    onRemoveRequirement={handleRemoveRequirement}
+                    onAddLineItem={handleAddLineItem}
+                    onRemoveLineItem={handleRemoveLineItem}
                   />
                 </motion.div>
               )}
@@ -1282,14 +1403,23 @@ export default function App() {
           onClose={() => setPickApprovedModalOpen(false)}
           onPick={(id) => {
             setPickApprovedModalOpen(false);
-            if (pickApprovedAction === 'CHANGE') {
-              handleChangeDoc(id, '');
-            } else {
-              handleTerminateDoc(id, '');
-            }
             const doc = pickApprovedType === 'REQ' ? requirements.find(r => r.id === id) : plans.find(p => p.id === id);
+            
             if (doc) {
-              handleViewDoc(doc, pickApprovedType);
+              const updatedDoc = { 
+                ...doc, 
+                auditStatus: pickApprovedAction === 'CHANGE' ? AuditStatus.CHANGE_DRAFT : AuditStatus.TERMINATE_DRAFT,
+                changeReason: pickApprovedAction === 'CHANGE' ? '' : (doc as any).changeReason,
+                terminationReason: pickApprovedAction === 'TERMINATE' ? '' : (doc as any).terminationReason
+              };
+              
+              if (pickApprovedAction === 'CHANGE') {
+                handleChangeDoc(id, '');
+              } else {
+                handleTerminateDoc(id, '');
+              }
+              
+              handleViewDoc(updatedDoc, pickApprovedType);
             }
           }}
         />

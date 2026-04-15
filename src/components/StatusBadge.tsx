@@ -23,6 +23,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
       case AuditStatus.DRAFT:
         return 'bg-yellow-100 text-yellow-700 border-yellow-200';
       case AuditStatus.REJECTED:
+      case AuditStatus.CHANGE_REJECTED:
+      case AuditStatus.TERMINATE_REJECTED:
       case '审核不通过':
         return 'bg-red-100 text-red-700 border-red-200';
       case AuditStatus.CHANGE_DRAFT:

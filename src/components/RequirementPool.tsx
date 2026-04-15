@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Requirement, AuditStatus, ReqProcessStatus, LineageRelation, MOCK_INVENTORY, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, Plus, PlusCircle, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Plus, PlusCircle, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History as HistoryIcon, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { SearchForm } from './SearchForm';
 
 const InventoryCheck: React.FC<{ materialCode: string; requiredQty: number }> = ({ materialCode, requiredQty }) => {
@@ -103,6 +103,12 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
     }
     if (searchParams.id) {
       filtered = filtered.filter(r => r.id.toLowerCase().includes(searchParams.id!.toLowerCase()));
+    }
+    if (searchParams.reason) {
+      filtered = filtered.filter(r => 
+        (r.changeReason?.toLowerCase().includes(searchParams.reason!.toLowerCase())) ||
+        (r.terminationReason?.toLowerCase().includes(searchParams.reason!.toLowerCase()))
+      );
     }
     if (searchParams.dept) {
       filtered = filtered.filter(r => (r.creator || '系统管理部').toLowerCase().includes(searchParams.dept!.toLowerCase()));
@@ -285,7 +291,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                       {req.id}
                     </span>
                     {hasHistory(req.id) && (
-                      <History className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
+                      <HistoryIcon className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
                     )}
                   </div>
                 </td>
@@ -309,9 +315,9 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                     req.auditStatus === AuditStatus.DRAFT ? 'text-blue-500' :
                     req.auditStatus === AuditStatus.PENDING ? 'text-orange-500' :
                     req.auditStatus === AuditStatus.APPROVED ? 'text-green-500' : 
-                    req.auditStatus === AuditStatus.REJECTED ? 'text-red-500' : 
-                    req.auditStatus === AuditStatus.CHANGE_DRAFT ? 'text-blue-400' :
-                    req.auditStatus === AuditStatus.CHANGE_PENDING ? 'text-orange-400' :
+                    req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_REJECTED || req.auditStatus === AuditStatus.TERMINATE_REJECTED ? 'text-red-500' : 
+                    req.auditStatus === AuditStatus.CHANGE_DRAFT || req.auditStatus === AuditStatus.TERMINATE_DRAFT ? 'text-blue-400' :
+                    req.auditStatus === AuditStatus.CHANGE_PENDING || req.auditStatus === AuditStatus.TERMINATE_PENDING ? 'text-orange-400' :
                     req.auditStatus === AuditStatus.TERMINATED ? 'text-gray-400' : 'text-erp-text-sub'
                   }`}>
                     {req.auditStatus}

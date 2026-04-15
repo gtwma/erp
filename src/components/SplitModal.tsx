@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Check, AlertCircle, ArrowRight, FileText, History, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { X, Check, AlertCircle, ArrowRight, FileText, History as HistoryIcon, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Requirement, Plan, LineageRelation } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -246,7 +246,7 @@ export const SplitModal: React.FC<SplitModalProps> = ({ isOpen, onClose, onConfi
               {hasHistory && (
                 <div className="mt-6 bg-orange-50/30 border border-orange-100 rounded-[2px] p-4">
                   <div className="flex items-center space-x-2 mb-2">
-                    <History className="w-3.5 h-3.5 text-orange-500" />
+                    <HistoryIcon className="w-3.5 h-3.5 text-orange-500" />
                     <span className="text-xs font-bold text-orange-700">历史关联溯源</span>
                   </div>
                   <div className="space-y-1">

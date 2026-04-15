@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plan, AuditStatus, PlanProcessStatus, LineageRelation, MOCK_INVENTORY, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, UserPlus, Package, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, GitMerge, GitBranch, History, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { Search, Filter, UserPlus, Package, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, GitMerge, GitBranch, History as HistoryIcon, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
 import { SearchForm } from './SearchForm';
 
 const InventoryCheck: React.FC<{ materialCode: string; requiredQty: number }> = ({ materialCode, requiredQty }) => {
@@ -72,20 +72,24 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
     if (mode === 'CHANGE') {
       filtered = filtered.filter(p => 
         p.auditStatus === AuditStatus.CHANGE_DRAFT || 
-        p.auditStatus === AuditStatus.CHANGE_PENDING
+        p.auditStatus === AuditStatus.CHANGE_PENDING ||
+        p.auditStatus === AuditStatus.CHANGE_REJECTED
       );
     } else if (mode === 'TERMINATE') {
       filtered = filtered.filter(p => 
         p.auditStatus === AuditStatus.TERMINATE_DRAFT || 
         p.auditStatus === AuditStatus.TERMINATE_PENDING || 
+        p.auditStatus === AuditStatus.TERMINATE_REJECTED ||
         p.auditStatus === AuditStatus.TERMINATED
       );
     } else {
       filtered = filtered.filter(p => 
         p.auditStatus !== AuditStatus.CHANGE_DRAFT && 
         p.auditStatus !== AuditStatus.CHANGE_PENDING && 
+        p.auditStatus !== AuditStatus.CHANGE_REJECTED &&
         p.auditStatus !== AuditStatus.TERMINATE_DRAFT && 
         p.auditStatus !== AuditStatus.TERMINATE_PENDING && 
+        p.auditStatus !== AuditStatus.TERMINATE_REJECTED &&
         p.auditStatus !== AuditStatus.TERMINATED
       );
     }
@@ -96,6 +100,12 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
     }
     if (searchParams.id) {
       filtered = filtered.filter(p => p.id.toLowerCase().includes(searchParams.id!.toLowerCase()));
+    }
+    if (searchParams.reason) {
+      filtered = filtered.filter(p => 
+        (p.changeReason?.toLowerCase().includes(searchParams.reason!.toLowerCase())) ||
+        (p.terminationReason?.toLowerCase().includes(searchParams.reason!.toLowerCase()))
+      );
     }
     if (searchParams.dept) {
       filtered = filtered.filter(p => (p.procurementDept || '系统管理部').toLowerCase().includes(searchParams.dept!.toLowerCase()));
@@ -293,7 +303,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                       {plan.id}
                     </span>
                     {hasHistory(plan.id) && (
-                      <History className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
+                      <HistoryIcon className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
                     )}
                   </div>
                 </td>
@@ -349,9 +359,9 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                     plan.auditStatus === AuditStatus.DRAFT ? 'text-blue-500' :
                     plan.auditStatus === AuditStatus.PENDING ? 'text-orange-500' :
                     plan.auditStatus === AuditStatus.APPROVED ? 'text-green-500' : 
-                    plan.auditStatus === AuditStatus.REJECTED ? 'text-red-500' : 
-                    plan.auditStatus === AuditStatus.CHANGE_DRAFT ? 'text-blue-400' :
-                    plan.auditStatus === AuditStatus.CHANGE_PENDING ? 'text-orange-400' :
+                    plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_REJECTED || plan.auditStatus === AuditStatus.TERMINATE_REJECTED ? 'text-red-500' : 
+                    plan.auditStatus === AuditStatus.CHANGE_DRAFT || plan.auditStatus === AuditStatus.TERMINATE_DRAFT ? 'text-blue-400' :
+                    plan.auditStatus === AuditStatus.CHANGE_PENDING || plan.auditStatus === AuditStatus.TERMINATE_PENDING ? 'text-orange-400' :
                     plan.auditStatus === AuditStatus.TERMINATED ? 'text-gray-400' : 'text-erp-text-sub'
                   }`}>
                     {plan.auditStatus}

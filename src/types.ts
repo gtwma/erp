@@ -47,6 +47,15 @@ export interface LineItem {
   sourcePlanId?: string; // Track source plan for subcontracts
 }
 
+export interface HistoryRecord {
+  id: string;
+  type: 'CHANGE' | 'TERMINATE';
+  reason: string;
+  timestamp: string;
+  operator: string;
+  status: AuditStatus;
+}
+
 export interface Requirement {
   id: string;
   materialCode: string;
@@ -62,6 +71,7 @@ export interface Requirement {
   items?: LineItem[];
   changeReason?: string;
   terminationReason?: string;
+  history?: HistoryRecord[];
 }
 
 export interface Plan {
@@ -80,6 +90,26 @@ export interface Plan {
   items?: LineItem[];
   changeReason?: string;
   terminationReason?: string;
+  history?: HistoryRecord[];
+  
+  // New fields from screenshot
+  attribute?: '工程' | '货物' | '服务';
+  estimatedTime?: string;
+  hasContract?: boolean;
+  planType?: '年度采购计划' | '季度采购计划' | '月度采购计划';
+  orgForm?: '分散采购' | '集中采购' | '框架协议采购' | '战略采购';
+  method?: string;
+  budget?: number;
+  actualBudget?: number;
+  contactPerson?: string;
+  contactPhone?: string;
+  entryUnit?: string;
+  applyUnit?: string;
+  applyManager?: string;
+  implUnit?: string;
+  implManager?: string;
+  warehouseName?: string;
+  warehouseCode?: string;
 }
 
 export interface Subcontract {
@@ -93,7 +123,7 @@ export interface Subcontract {
 
 export interface LineageRelation {
   id: string;
-  type: 'REQ_MERGE' | 'REQ_SPLIT' | 'PLAN_MERGE' | 'PLAN_SPLIT' | 'REQ_TO_PLAN' | 'PLAN_TO_SUB';
+  type: 'REQ_MERGE' | 'REQ_SPLIT' | 'PLAN_MERGE' | 'PLAN_SPLIT' | 'REQ_TO_PLAN' | 'PLAN_TO_SUB' | 'REQ_CHANGE' | 'REQ_TERMINATE' | 'PLAN_CHANGE' | 'PLAN_TERMINATE';
   sourceIds: string[];
   targetIds: string[];
   qty: number;
@@ -140,6 +170,7 @@ export interface SearchParams {
   person?: string;
   date?: string;
   status?: string;
+  reason?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }

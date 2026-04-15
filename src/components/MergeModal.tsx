@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { X, Check, AlertCircle, ArrowDown, Layers, History, ChevronDown } from 'lucide-react';
+import { X, Check, AlertCircle, ArrowDown, Layers, History as HistoryIcon, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Requirement, Plan, LineageRelation } from '../types';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -180,7 +180,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
                             <td className="px-4 py-3">
                               {sLineage.length > 0 ? (
                                 <div className="flex items-center space-x-1 text-orange-500">
-                                  <History className="w-3 h-3" />
+                                  <HistoryIcon className="w-3 h-3" />
                                   <span className="text-[9px]">曾由{sLineage[0].type.includes('SPLIT') ? '拆分' : '合并'}生成</span>
                                 </div>
                               ) : (
@@ -254,7 +254,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
                 <div className="p-6">
                   <div className="flex items-center space-x-4 text-xs">
                     <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                      <History className="w-4 h-4 text-blue-500" />
+                      <HistoryIcon className="w-4 h-4 text-blue-500" />
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-gray-800 font-medium">合并溯源记录</p>

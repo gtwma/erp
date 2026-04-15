@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Subcontract, LineageRelation, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, Package, ArrowRight, X, Check, ClipboardList, Edit3, Eye, FileText, History, Pencil, Settings, CheckCircle2, Trash2, Plus, Briefcase, AlertCircle } from 'lucide-react';
+import { Search, Filter, Package, ArrowRight, X, Check, ClipboardList, Edit3, Eye, FileText, History as HistoryIcon, Pencil, Settings, CheckCircle2, Trash2, Plus, Briefcase, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SearchForm } from './SearchForm';
 
@@ -203,7 +203,7 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                       {sub.id}
                     </span>
                     {hasHistory(sub.id) && (
-                      <History className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
+                      <HistoryIcon className="w-3 h-3 text-orange-400" title="该单据由拆分或合并生成" />
                     )}
                   </div>
                 </td>
