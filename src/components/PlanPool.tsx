@@ -71,13 +71,11 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
 
     if (mode === 'CHANGE') {
       filtered = filtered.filter(p => 
-        p.auditStatus === AuditStatus.APPROVED ||
         p.auditStatus === AuditStatus.CHANGE_DRAFT || 
         p.auditStatus === AuditStatus.CHANGE_PENDING
       );
     } else if (mode === 'TERMINATE') {
       filtered = filtered.filter(p => 
-        p.auditStatus === AuditStatus.APPROVED ||
         p.auditStatus === AuditStatus.TERMINATE_DRAFT || 
         p.auditStatus === AuditStatus.TERMINATE_PENDING || 
         p.auditStatus === AuditStatus.TERMINATED

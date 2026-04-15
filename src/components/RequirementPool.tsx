@@ -74,23 +74,25 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
 
     if (mode === 'CHANGE') {
       filtered = filtered.filter(r => 
-        r.auditStatus === AuditStatus.APPROVED ||
         r.auditStatus === AuditStatus.CHANGE_DRAFT || 
-        r.auditStatus === AuditStatus.CHANGE_PENDING
+        r.auditStatus === AuditStatus.CHANGE_PENDING ||
+        r.auditStatus === AuditStatus.CHANGE_REJECTED
       );
     } else if (mode === 'TERMINATE') {
       filtered = filtered.filter(r => 
-        r.auditStatus === AuditStatus.APPROVED ||
         r.auditStatus === AuditStatus.TERMINATE_DRAFT || 
         r.auditStatus === AuditStatus.TERMINATE_PENDING || 
+        r.auditStatus === AuditStatus.TERMINATE_REJECTED ||
         r.auditStatus === AuditStatus.TERMINATED
       );
     } else {
       filtered = filtered.filter(r => 
         r.auditStatus !== AuditStatus.CHANGE_DRAFT && 
         r.auditStatus !== AuditStatus.CHANGE_PENDING && 
+        r.auditStatus !== AuditStatus.CHANGE_REJECTED &&
         r.auditStatus !== AuditStatus.TERMINATE_DRAFT && 
         r.auditStatus !== AuditStatus.TERMINATE_PENDING && 
+        r.auditStatus !== AuditStatus.TERMINATE_REJECTED &&
         r.auditStatus !== AuditStatus.TERMINATED
       );
     }

@@ -744,9 +744,23 @@ export default function App() {
 
   const handleReject = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
     if (type === 'REQ') {
-      setRequirements(requirements.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.REJECTED } : r));
+      setRequirements(requirements.map(r => {
+        if (r.id === id) {
+          if (r.auditStatus === AuditStatus.CHANGE_PENDING) return { ...r, auditStatus: AuditStatus.CHANGE_REJECTED };
+          if (r.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...r, auditStatus: AuditStatus.TERMINATE_REJECTED };
+          return { ...r, auditStatus: AuditStatus.REJECTED };
+        }
+        return r;
+      }));
     } else if (type === 'PLAN') {
-      setPlans(plans.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.REJECTED } : p));
+      setPlans(plans.map(p => {
+        if (p.id === id) {
+          if (p.auditStatus === AuditStatus.CHANGE_PENDING) return { ...p, auditStatus: AuditStatus.CHANGE_REJECTED };
+          if (p.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...p, auditStatus: AuditStatus.TERMINATE_REJECTED };
+          return { ...p, auditStatus: AuditStatus.REJECTED };
+        }
+        return p;
+      }));
     } else if (type === 'PROJECT') {
       setProjects(projects.map(p => p.id === id ? { ...p, status: '审核不通过' } : p));
     } else if (type === 'SUB') {

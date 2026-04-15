@@ -13,6 +13,8 @@ export enum AuditStatus {
   TERMINATE_DRAFT = '取消编辑中',
   TERMINATE_PENDING = '取消待审核',
   TERMINATED = '已终止',
+  CHANGE_REJECTED = '变更审核不通过',
+  TERMINATE_REJECTED = '取消审核不通过',
 }
 
 export enum ReqProcessStatus {
