@@ -145,20 +145,6 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, line
                       <Edit3 className="w-3.5 h-3.5" />
                       <span>修改单据</span>
                     </button>
-                    <button 
-                      onClick={handleChange}
-                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-orange-500 text-white text-xs font-medium rounded-[2px] hover:bg-orange-600 transition-all shadow-sm"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      <span>变更</span>
-                    </button>
-                    <button 
-                      onClick={handleTerminate}
-                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-[2px] hover:bg-gray-700 transition-all shadow-sm"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>终止</span>
-                    </button>
                   </>
                 )}
               </div>

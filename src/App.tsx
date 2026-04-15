@@ -27,7 +27,9 @@ import {
   List,
   PlusCircle,
   BarChart3,
-  SearchCode
+  SearchCode,
+  RefreshCw,
+  XCircle
 } from 'lucide-react';
 import { Requirement, Plan, Subcontract, AuditStatus, ReqProcessStatus, PlanProcessStatus, LineageRelation, ProjectApproval, LineItem } from './types';
 import { MOCK_REQUIREMENTS, MOCK_PLANS, MOCK_SUBCONTRACTS, MOCK_LINEAGE, MOCK_PROJECTS } from './constants';
@@ -768,13 +770,9 @@ export default function App() {
             <TopNavItem icon={<Home className="w-4 h-4" />} active={currentView === 'DASHBOARD'} onClick={() => setCurrentView('DASHBOARD')} />
             <TopNavItem icon={<Grid className="w-4 h-4" />} />
             <div className="h-4 w-[1px] bg-white/20 mx-2" />
-            <TopMenuLink label="采购需求" active={currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ'} onClick={() => setCurrentView('REQ_APP')} />
-            <TopMenuLink label="采购计划" active={currentView === 'PLAN_POOL' || currentView === 'SUB_POOL'} onClick={() => setCurrentView('PLAN_POOL')} />
+            <TopMenuLink label="采购需求" active={currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ' || currentView === 'REQ_CHANGE' || currentView === 'REQ_TERMINATE'} onClick={() => setCurrentView('REQ_APP')} />
+            <TopMenuLink label="采购计划" active={currentView === 'PLAN_POOL' || currentView === 'SUB_POOL' || currentView === 'PLAN_CHANGE' || currentView === 'PLAN_TERMINATE'} onClick={() => setCurrentView('PLAN_POOL')} />
             <TopMenuLink label="采购立项" active={currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT'} onClick={() => setCurrentView('PROJECT_APP')} />
-            <TopMenuLink label="需求变更" active={currentView === 'REQ_CHANGE'} onClick={() => setCurrentView('REQ_CHANGE')} />
-            <TopMenuLink label="需求取消" active={currentView === 'REQ_TERMINATE'} onClick={() => setCurrentView('REQ_TERMINATE')} />
-            <TopMenuLink label="计划变更" active={currentView === 'PLAN_CHANGE'} onClick={() => setCurrentView('PLAN_CHANGE')} />
-            <TopMenuLink label="计划取消" active={currentView === 'PLAN_TERMINATE'} onClick={() => setCurrentView('PLAN_TERMINATE')} />
             <TopMenuLink label="招标采购" active={false} />
             <TopMenuLink icon={<Menu className="w-4 h-4" />} />
           </nav>
@@ -802,8 +800,8 @@ export default function App() {
           <div className="h-10 px-4 flex items-center border-b border-erp-border bg-gray-50/50">
             <span className="text-xs font-bold text-erp-text-main">
               {currentView === 'DASHBOARD' ? '工作台' : 
-               currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ' ? '采购需求' : 
-               currentView === 'PLAN_POOL' ? '采购计划' : 
+               currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ' || currentView === 'REQ_CHANGE' || currentView === 'REQ_TERMINATE' ? '采购需求' : 
+               currentView === 'PLAN_POOL' || currentView === 'PLAN_CHANGE' || currentView === 'PLAN_TERMINATE' ? '采购计划' : 
                currentView === 'SUB_POOL' ? '分包管理' : 
                currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT' ? '采购立项' : '血缘追溯'}
             </span>
@@ -816,7 +814,7 @@ export default function App() {
                 label="我的桌面" 
                 active={true}
               />
-            ) : (currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ') ? (
+            ) : (currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ' || currentView === 'REQ_CHANGE' || currentView === 'REQ_TERMINATE') ? (
               <>
                 <SideNavItem 
                   icon={<FileText className="w-4 h-4" />} 
@@ -830,14 +828,38 @@ export default function App() {
                   active={currentView === 'REQ_POOL'}
                   onClick={() => setCurrentView('REQ_POOL')}
                 />
+                <SideNavItem 
+                  icon={<RefreshCw className="w-4 h-4" />} 
+                  label="需求变更" 
+                  active={currentView === 'REQ_CHANGE'}
+                  onClick={() => setCurrentView('REQ_CHANGE')}
+                />
+                <SideNavItem 
+                  icon={<XCircle className="w-4 h-4" />} 
+                  label="需求取消" 
+                  active={currentView === 'REQ_TERMINATE'}
+                  onClick={() => setCurrentView('REQ_TERMINATE')}
+                />
               </>
-            ) : currentView === 'PLAN_POOL' || currentView === 'SUB_POOL' ? (
+            ) : (currentView === 'PLAN_POOL' || currentView === 'SUB_POOL' || currentView === 'PLAN_CHANGE' || currentView === 'PLAN_TERMINATE') ? (
               <>
                 <SideNavItem 
                   icon={<ClipboardList className="w-4 h-4" />} 
                   label="采购计划申请" 
                   active={currentView === 'PLAN_POOL'}
                   onClick={() => setCurrentView('PLAN_POOL')}
+                />
+                <SideNavItem 
+                  icon={<RefreshCw className="w-4 h-4" />} 
+                  label="计划变更" 
+                  active={currentView === 'PLAN_CHANGE'}
+                  onClick={() => setCurrentView('PLAN_CHANGE')}
+                />
+                <SideNavItem 
+                  icon={<XCircle className="w-4 h-4" />} 
+                  label="计划取消" 
+                  active={currentView === 'PLAN_TERMINATE'}
+                  onClick={() => setCurrentView('PLAN_TERMINATE')}
                 />
                 <SideNavItem 
                   icon={<Package className="w-4 h-4" />} 
