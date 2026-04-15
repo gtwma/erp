@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Requirement, ReqStatus } from '../types';
+import { Requirement, AuditStatus, ReqProcessStatus } from '../types';
 import { X, Search, FileText, CheckCircle2 } from 'lucide-react';
 
 interface PickRequirementModalProps {
@@ -20,7 +20,8 @@ export const PickRequirementModal: React.FC<PickRequirementModalProps> = ({
 
   const availableRequirements = useMemo(() => {
     return requirements.filter(req => 
-      req.status === ReqStatus.APPROVED && 
+      req.auditStatus === AuditStatus.APPROVED && 
+      req.processStatus === ReqProcessStatus.NORMAL && 
       (req.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
        req.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );

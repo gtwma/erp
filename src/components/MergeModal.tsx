@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Check, AlertCircle, ArrowDown, Layers, History, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Requirement, Plan, LineageRelation } from '../types';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface MergeModalProps {
   isOpen: boolean;
@@ -18,14 +19,11 @@ interface MergeModalProps {
 }
 
 export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfirm, sources, type, lineage }) => {
-  if (!isOpen || sources.length === 0) return null;
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const totalQty = sources.reduce((sum, s) => sum + s.qty, 0);
-  const first = sources[0];
-  const title = type === 'REQ' ? '采购需求合并' : '采购计划合并';
-
-  // Group items for preview
+  // Group items for preview - Moved before conditional return to follow Rules of Hooks
   const groupedTargets = React.useMemo(() => {
+    if (sources.length === 0) return [];
     const groups: Record<string, { materialCode: string, name: string, spec: string, unitPrice?: number, totalQty: number, sourceCount: number }> = {};
     sources.forEach(s => {
       // For requirements, we group by unitPrice as well to match App.tsx logic
@@ -50,6 +48,12 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
     return Object.values(groups);
   }, [sources, type]);
 
+  if (!isOpen || sources.length === 0) return null;
+
+  const totalQty = sources.reduce((sum, s) => sum + s.qty, 0);
+  const first = sources[0];
+  const title = type === 'REQ' ? '采购需求合并' : '采购计划合并';
+
   const getLineageFor = (id: string) => lineage.filter(l => l.targetIds.includes(id));
 
   return (
@@ -66,7 +70,7 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2 mr-2">
                 <button
-                  onClick={onConfirm}
+                  onClick={() => setShowConfirm(true)}
                   className="px-4 py-1.5 rounded-[2px] text-xs font-medium text-white bg-[#2196F3] hover:bg-blue-600 transition-all shadow-sm"
                 >
                   确认合并
@@ -265,6 +269,19 @@ export const MergeModal: React.FC<MergeModalProps> = ({ isOpen, onClose, onConfi
           </div>
 
         </motion.div>
+        
+        <ConfirmDialog
+          isOpen={showConfirm}
+          title="确认执行合并操作？"
+          message={`您正在将 ${sources.length} 项${type === 'REQ' ? '需求' : '计划'}合并为新的单据。合并后，原始单据将标记为“已合并”且不可再次操作。`}
+          onConfirm={() => {
+            setShowConfirm(false);
+            onConfirm();
+          }}
+          onCancel={() => setShowConfirm(false)}
+          confirmText="确认合并"
+          type="warning"
+        />
       </div>
     </AnimatePresence>
   );

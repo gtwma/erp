@@ -28,18 +28,31 @@ export const TraceabilityTree: React.FC<TraceabilityTreeProps> = ({
     const plan = plans.find(p => p.id === id);
     if (plan) return { id: plan.id, name: plan.name, type: 'PLAN', status: plan.status, qty: plan.qty };
     const sub = subcontracts.find(s => s.id === id);
-    if (sub) return { id: sub.id, name: sub.name, type: 'SUB', status: sub.status, qty: sub.planIds.length };
+    if (sub) return { id: sub.id, name: sub.name, type: 'SUB', status: sub.status, qty: sub.items?.length || 0 };
     return null;
   };
 
-  // Construct nodes based on lineage
-  // For simplicity, we'll just show the flow of the first matching relation
-  const nodes = React.useMemo(() => {
-    if (lineage.length === 0) return [];
-    const relation = lineage[0];
-    const sourceNodes = relation.sourceIds.map(id => getDoc(id)).filter(Boolean);
-    const targetNodes = relation.targetIds.map(id => getDoc(id)).filter(Boolean);
-    return { sourceNodes, targetNodes, type: relation.type };
+  const { reqNodes, planNodes, subNodes } = React.useMemo(() => {
+    const ids = new Set<string>();
+    lineage.forEach(rel => {
+      rel.sourceIds.forEach(id => ids.add(id));
+      rel.targetIds.forEach(id => ids.add(id));
+    });
+    
+    const reqs: any[] = [];
+    const plns: any[] = [];
+    const subs: any[] = [];
+    
+    ids.forEach(id => {
+      const doc = getDoc(id);
+      if (doc) {
+        if (doc.type === 'REQ') reqs.push(doc);
+        else if (doc.type === 'PLAN') plns.push(doc);
+        else if (doc.type === 'SUB') subs.push(doc);
+      }
+    });
+    
+    return { reqNodes: reqs, planNodes: plns, subNodes: subs };
   }, [lineage, requirements, plans, subcontracts]);
 
   if (lineage.length === 0) {
@@ -51,29 +64,40 @@ export const TraceabilityTree: React.FC<TraceabilityTreeProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center space-y-12">
-      {/* Source Nodes */}
-      <div className="flex flex-wrap justify-center gap-6">
-        {nodes.sourceNodes.map((node) => (
-          <NodeCard key={node!.id} node={node!} />
-        ))}
-      </div>
-
-      {/* Relation Arrow */}
-      <div className="flex flex-col items-center">
-        <div className="h-12 w-[2px] bg-erp-border relative">
-          <div className="absolute -bottom-1 -left-[3px] w-2 h-2 border-r-2 border-b-2 border-erp-border rotate-45" />
+    <div className="flex justify-between items-stretch gap-4">
+      {/* Requirements Column */}
+      <div className="flex-1 flex flex-col items-center space-y-4">
+        <div className="text-[10px] font-bold text-erp-text-sub uppercase tracking-wider mb-2">采购需求</div>
+        <div className="flex flex-col gap-4 w-full items-center">
+          {reqNodes.map(node => <NodeCard key={node.id} node={node} />)}
+          {reqNodes.length === 0 && <div className="h-24 w-48 border border-dashed border-gray-200 rounded-xl flex items-center justify-center text-[10px] text-gray-300 italic">无关联需求</div>}
         </div>
-        <span className="text-[10px] font-bold text-erp-secondary bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 mt-2">
-          {nodes.type}
-        </span>
       </div>
 
-      {/* Target Nodes */}
-      <div className="flex flex-wrap justify-center gap-6">
-        {nodes.targetNodes.map((node) => (
-          <NodeCard key={node!.id} node={node!} />
-        ))}
+      <div className="flex flex-col justify-center">
+        <ArrowRight className="w-5 h-5 text-gray-300" />
+      </div>
+
+      {/* Plans Column */}
+      <div className="flex-1 flex flex-col items-center space-y-4">
+        <div className="text-[10px] font-bold text-erp-text-sub uppercase tracking-wider mb-2">采购计划</div>
+        <div className="flex flex-col gap-4 w-full items-center">
+          {planNodes.map(node => <NodeCard key={node.id} node={node} />)}
+          {planNodes.length === 0 && <div className="h-24 w-48 border border-dashed border-gray-200 rounded-xl flex items-center justify-center text-[10px] text-gray-300 italic">无关联计划</div>}
+        </div>
+      </div>
+
+      <div className="flex flex-col justify-center">
+        <ArrowRight className="w-5 h-5 text-gray-300" />
+      </div>
+
+      {/* Subcontracts Column */}
+      <div className="flex-1 flex flex-col items-center space-y-4">
+        <div className="text-[10px] font-bold text-erp-text-sub uppercase tracking-wider mb-2">分包管理</div>
+        <div className="flex flex-col gap-4 w-full items-center">
+          {subNodes.map(node => <NodeCard key={node.id} node={node} />)}
+          {subNodes.length === 0 && <div className="h-24 w-48 border border-dashed border-gray-200 rounded-xl flex items-center justify-center text-[10px] text-gray-300 italic">无关联分包</div>}
+        </div>
       </div>
     </div>
   );

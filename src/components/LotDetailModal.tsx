@@ -188,23 +188,57 @@ export const LotDetailModal: React.FC<LotDetailModalProps> = ({ isOpen, onClose,
             {expandedSections['02'] && (
               <div className="p-4 space-y-4">
                 <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-                  <button className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap">
+                  <button 
+                    onClick={() => {
+                      const newItem: LineItem = {
+                        id: `LI-NEW-${Math.floor(Math.random() * 1000)}`,
+                        materialCode: 'M-NEW',
+                        materialName: '新物料',
+                        spec: '待完善',
+                        qty: 1,
+                        unit: '个',
+                        unitPrice: 0
+                      };
+                      setEditedLot({ ...editedLot, items: [...editedLot.items, newItem] });
+                    }}
+                    className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap"
+                  >
                     <Plus className="w-3 h-3" />
                     <span>新增物料</span>
                   </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap">
+                  <button 
+                    onClick={() => {
+                      const selectedCheckboxes = document.querySelectorAll('.material-checkbox:checked');
+                      if (selectedCheckboxes.length > 0) {
+                        const idsToRemove = Array.from(selectedCheckboxes).map(cb => cb.getAttribute('data-id'));
+                        setEditedLot({ ...editedLot, items: editedLot.items.filter(i => !idsToRemove.includes(i.id)) });
+                      } else {
+                        alert('请先选择要删除的物料');
+                      }
+                    }}
+                    className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap"
+                  >
                     <Trash2 className="w-3 h-3" />
                     <span>删除物料</span>
                   </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap">
+                  <button 
+                    onClick={() => alert('正在下载Excel清单导入模板...')}
+                    className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap"
+                  >
                     <FileDown className="w-3 h-3" />
                     <span>excel清单导入模板下载</span>
                   </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap">
+                  <button 
+                    onClick={() => alert('正在打开Excel清单导入窗口...')}
+                    className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap"
+                  >
                     <FileUp className="w-3 h-3" />
                     <span>Excel清单导入</span>
                   </button>
-                  <button className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap">
+                  <button 
+                    onClick={() => alert('正在打开Excel导入窗口...')}
+                    className="px-3 py-1 border border-gray-300 rounded-[2px] text-[11px] font-medium text-gray-600 hover:bg-gray-50 flex items-center space-x-1 whitespace-nowrap"
+                  >
                     <Upload className="w-3 h-3" />
                     <span>Excel导入</span>
                   </button>
@@ -214,7 +248,16 @@ export const LotDetailModal: React.FC<LotDetailModalProps> = ({ isOpen, onClose,
                   <table className="w-full text-left border-collapse min-w-[1200px]">
                     <thead>
                       <tr className="bg-gray-50 text-[11px] text-gray-500 border-b border-gray-200">
-                        <th className="px-4 py-2 w-10 text-center"><input type="checkbox" className="rounded" /></th>
+                        <th className="px-4 py-2 w-10 text-center">
+                          <input 
+                            type="checkbox" 
+                            className="rounded" 
+                            onChange={(e) => {
+                              const checkboxes = document.querySelectorAll('.material-checkbox');
+                              checkboxes.forEach((cb: any) => cb.checked = e.target.checked);
+                            }}
+                          />
+                        </th>
                         <th className="px-4 py-2 w-12 text-center">序</th>
                         <th className="px-4 py-2">物料编码</th>
                         <th className="px-4 py-2">物料名称</th>
@@ -233,7 +276,9 @@ export const LotDetailModal: React.FC<LotDetailModalProps> = ({ isOpen, onClose,
                     <tbody className="divide-y divide-gray-100">
                       {editedLot.items.map((item, index) => (
                         <tr key={item.id} className="text-xs hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-2.5 text-center"><input type="checkbox" className="rounded" /></td>
+                          <td className="px-4 py-2.5 text-center">
+                            <input type="checkbox" className="rounded material-checkbox" data-id={item.id} />
+                          </td>
                           <td className="px-4 py-2.5 text-center text-gray-400">{index + 1}</td>
                           <td className="px-4 py-2.5 font-mono">{item.materialCode}</td>
                           <td className="px-4 py-2.5 font-medium">{item.materialName}</td>
@@ -241,12 +286,60 @@ export const LotDetailModal: React.FC<LotDetailModalProps> = ({ isOpen, onClose,
                           <td className="px-4 py-2.5 text-gray-500">通用配件</td>
                           <td className="px-4 py-2.5 text-gray-500 truncate max-w-[150px]">{item.materialName}</td>
                           <td className="px-4 py-2.5 text-gray-500">{item.spec}</td>
-                          <td className="px-4 py-2.5 text-gray-500">-</td>
-                          <td className="px-4 py-2.5 text-gray-500">-</td>
-                          <td className="px-4 py-2.5 text-right font-bold">{item.qty}</td>
-                          <td className="px-4 py-2.5 text-gray-500">{item.unit}</td>
-                          <td className="px-4 py-2.5 text-right text-erp-secondary">¥{item.unitPrice.toLocaleString()}</td>
-                          <td className="px-4 py-2.5 text-gray-500">-</td>
+                          <td className="px-4 py-2.5">
+                            <input 
+                              type="text" 
+                              className="w-full border border-gray-200 rounded px-1 py-0.5" 
+                              defaultValue="-" 
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input 
+                              type="text" 
+                              className="w-full border border-gray-200 rounded px-1 py-0.5" 
+                              defaultValue="-" 
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <input 
+                              type="number" 
+                              className="w-20 border border-gray-200 rounded px-1 py-0.5 text-right font-bold" 
+                              value={item.qty}
+                              onChange={e => {
+                                const newItems = editedLot.items.map(i => i.id === item.id ? { ...i, qty: Number(e.target.value) } : i);
+                                setEditedLot({ ...editedLot, items: newItems });
+                              }}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input 
+                              type="text" 
+                              className="w-16 border border-gray-200 rounded px-1 py-0.5" 
+                              value={item.unit}
+                              onChange={e => {
+                                const newItems = editedLot.items.map(i => i.id === item.id ? { ...i, unit: e.target.value } : i);
+                                setEditedLot({ ...editedLot, items: newItems });
+                              }}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            <input 
+                              type="number" 
+                              className="w-24 border border-gray-200 rounded px-1 py-0.5 text-right text-erp-secondary" 
+                              value={item.unitPrice}
+                              onChange={e => {
+                                const newItems = editedLot.items.map(i => i.id === item.id ? { ...i, unitPrice: Number(e.target.value) } : i);
+                                setEditedLot({ ...editedLot, items: newItems });
+                              }}
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input 
+                              type="text" 
+                              className="w-full border border-gray-200 rounded px-1 py-0.5" 
+                              defaultValue="-" 
+                            />
+                          </td>
                         </tr>
                       ))}
                       {editedLot.items.length === 0 && (

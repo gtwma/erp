@@ -29,7 +29,7 @@ import {
   BarChart3,
   SearchCode
 } from 'lucide-react';
-import { Requirement, Plan, Subcontract, ReqStatus, PlanStatus, LineageRelation, ProjectApproval } from './types';
+import { Requirement, Plan, Subcontract, AuditStatus, ReqProcessStatus, PlanProcessStatus, LineageRelation, ProjectApproval, LineItem } from './types';
 import { MOCK_REQUIREMENTS, MOCK_PLANS, MOCK_SUBCONTRACTS, MOCK_LINEAGE, MOCK_PROJECTS } from './constants';
 import { RequirementPool } from './components/RequirementPool';
 import { PlanPool } from './components/PlanPool';
@@ -45,9 +45,11 @@ import { SubcontractModal } from './components/SubcontractModal';
 import { ProjectApprovalPool } from './components/ProjectApprovalPool';
 import { CreateProjectApproval } from './components/CreateProjectApproval';
 import { PickRequirementModal } from './components/PickRequirementModal';
+import { AssignModal } from './components/AssignModal';
+import { PickApprovedModal } from './components/PickApprovedModal';
 import { motion, AnimatePresence } from 'motion/react';
 
-type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN' | 'VIEW_SUB' | 'PROJECT_APP' | 'CREATE_PROJECT';
+type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN' | 'VIEW_SUB' | 'PROJECT_APP' | 'CREATE_PROJECT' | 'REQ_CHANGE' | 'PLAN_CHANGE' | 'REQ_TERMINATE' | 'PLAN_TERMINATE';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('DASHBOARD');
@@ -75,13 +77,22 @@ export default function App() {
   const [pickReqModalOpen, setPickReqModalOpen] = useState(false);
   const [pickReqTargetId, setPickReqTargetId] = useState<string | undefined>(undefined);
 
+  // Assign Modal State
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTargetIds, setAssignTargetIds] = useState<string[]>([]);
+
+  // Pick Approved Modal State
+  const [pickApprovedModalOpen, setPickApprovedModalOpen] = useState(false);
+  const [pickApprovedType, setPickApprovedType] = useState<'REQ' | 'PLAN'>('REQ');
+  const [pickApprovedAction, setPickApprovedAction] = useState<'CHANGE' | 'TERMINATE'>('CHANGE');
+
   // View Document State
   const [viewingDoc, setViewingDoc] = useState<Requirement | Plan | null>(null);
 
   // Stats
   const stats = useMemo(() => {
     const totalReq = requirements.length;
-    const pendingReq = requirements.filter(r => r.status === ReqStatus.APPROVED).length;
+    const pendingReq = requirements.filter(r => r.auditStatus === AuditStatus.APPROVED).length;
     const totalPlan = plans.length;
     const totalSub = subcontracts.length;
     const totalProject = projects.length;
@@ -89,6 +100,8 @@ export default function App() {
   }, [requirements, plans, subcontracts, projects]);
 
   // Handlers
+  const [selectedSubsForProject, setSelectedSubsForProject] = useState<Subcontract[]>([]);
+
   const handlePickToPlan = (ids: string[], targetPlanId?: string) => {
     const selectedReqs = requirements.filter(r => ids.includes(r.id));
     if (selectedReqs.length === 0) return;
@@ -138,7 +151,8 @@ export default function App() {
         name: `采购计划汇总`,
         spec: selectedReqs.length === 1 ? selectedReqs[0].spec : '混合规格',
         qty: totalQty,
-        status: PlanStatus.APPROVED,
+        auditStatus: AuditStatus.APPROVED,
+        processStatus: PlanProcessStatus.NORMAL,
         createdAt: new Date().toLocaleString(),
         items: newItems
       };
@@ -147,7 +161,7 @@ export default function App() {
 
     const updatedReqs = requirements.map(req => {
       if (ids.includes(req.id)) {
-        return { ...req, assignedQty: req.qty, status: ReqStatus.COMPLETED };
+        return { ...req, assignedQty: req.qty, processStatus: ReqProcessStatus.COMPLETED };
       }
       return req;
     });
@@ -167,6 +181,25 @@ export default function App() {
     setCurrentView('PLAN_POOL');
   };
 
+  const handleCreateEmptyPlan = () => {
+    const now = Date.now();
+    const newPlan: Plan = {
+      id: `PLN-${now}`,
+      reqLineId: 'MANUAL',
+      materialCode: 'PENDING',
+      name: '新建采购计划',
+      spec: '待完善',
+      qty: 0,
+      auditStatus: AuditStatus.DRAFT,
+      processStatus: PlanProcessStatus.NORMAL,
+      createdAt: new Date().toLocaleString(),
+      items: []
+    };
+    setPlans(prev => [...prev, newPlan]);
+    setViewingDoc(newPlan as any);
+    setCurrentView('VIEW_PLAN');
+  };
+
   const handleMergeReqs = (ids: string[]) => {
     setMergeType('REQ');
     setMergeTargetIds(ids);
@@ -183,42 +216,64 @@ export default function App() {
     const totalPrice = selectedReqs.reduce((sum, r) => sum + r.qty * r.unitPrice, 0);
     const first = selectedReqs[0];
 
+    // Aggregate all items from selected requirements
+    const allItems: LineItem[] = [];
+    selectedReqs.forEach(req => {
+      if (req.items && req.items.length > 0) {
+        allItems.push(...req.items);
+      } else {
+        allItems.push({
+          id: `LI-FALLBACK-${req.id}`,
+          materialCode: req.materialCode,
+          materialName: req.name,
+          spec: req.spec,
+          unit: '个',
+          qty: req.qty,
+          unitPrice: req.unitPrice
+        });
+      }
+    });
+
     // Group by material properties for line items
-    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, totalQty: number, unitPrice: number }> = {};
-    selectedReqs.forEach(r => {
-      const key = `${r.materialCode}|${r.name}|${r.spec}|${r.unitPrice}`;
+    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, unit: string, totalQty: number, unitPrice: number }> = {};
+    allItems.forEach(item => {
+      const key = `${item.materialCode}|${item.materialName}|${item.spec}|${item.unitPrice}`;
       if (!itemGroups[key]) {
         itemGroups[key] = { 
-          materialCode: r.materialCode, 
-          materialName: r.name, 
-          spec: r.spec, 
+          materialCode: item.materialCode, 
+          materialName: item.materialName, 
+          spec: item.spec, 
+          unit: item.unit,
           totalQty: 0, 
-          unitPrice: r.unitPrice 
+          unitPrice: item.unitPrice 
         };
       }
-      itemGroups[key].totalQty += r.qty;
+      itemGroups[key].totalQty += item.qty;
     });
+
+    const newItems = Object.values(itemGroups).map((g, idx) => ({
+      id: `LI-${now}-${idx}`,
+      materialCode: g.materialCode,
+      materialName: g.materialName,
+      spec: g.spec,
+      unit: g.unit,
+      qty: g.totalQty,
+      unitPrice: g.unitPrice
+    }));
 
     const newReq: Requirement = {
       id: `REQ-MERGE-${now}`,
-      materialCode: selectedReqs.length === 1 ? first.materialCode : 'MULTIPLE',
-      name: `采购申请汇总`,
-      spec: selectedReqs.length === 1 ? first.spec : '混合规格',
+      materialCode: newItems.length === 1 ? newItems[0].materialCode : 'MULTIPLE',
+      name: newItems.length === 1 ? newItems[0].materialName : `采购申请汇总`,
+      spec: newItems.length === 1 ? newItems[0].spec : '混合规格',
       qty: totalQty,
       assignedQty: 0,
       unitPrice: totalQty > 0 ? totalPrice / totalQty : 0,
-      status: ReqStatus.APPROVED,
+      auditStatus: AuditStatus.APPROVED,
+      processStatus: ReqProcessStatus.NORMAL,
       createdAt: new Date().toLocaleString(),
       creator: '系统合并',
-      items: Object.values(itemGroups).map((g, idx) => ({
-        id: `LI-${now}-${idx}`,
-        materialCode: g.materialCode,
-        materialName: g.materialName,
-        spec: g.spec,
-        unit: '个',
-        qty: g.totalQty,
-        unitPrice: g.unitPrice
-      }))
+      items: newItems
     };
 
     const newLineage: LineageRelation = {
@@ -232,7 +287,7 @@ export default function App() {
 
     const updatedReqs = requirements.map(req => {
       if (ids.includes(req.id)) {
-        return { ...req, status: ReqStatus.MERGED };
+        return { ...req, processStatus: ReqProcessStatus.MERGED };
       }
       return req;
     });
@@ -278,39 +333,62 @@ export default function App() {
     const totalQty = selectedPlans.reduce((sum, p) => sum + p.qty, 0);
     const first = selectedPlans[0];
 
-    // Group by material properties for line items
-    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, totalQty: number }> = {};
+    // Aggregate all items from selected plans
+    const allItems: LineItem[] = [];
     selectedPlans.forEach(p => {
-      const key = `${p.materialCode}|${p.name}|${p.spec}`;
+      if (p.items && p.items.length > 0) {
+        allItems.push(...p.items);
+      } else {
+        allItems.push({
+          id: `LI-FALLBACK-${p.id}`,
+          materialCode: p.materialCode,
+          materialName: p.name,
+          spec: p.spec,
+          unit: '个',
+          qty: p.qty,
+          unitPrice: 0
+        });
+      }
+    });
+
+    // Group by material properties for line items
+    const itemGroups: Record<string, { materialCode: string, materialName: string, spec: string, unit: string, totalQty: number, unitPrice: number }> = {};
+    allItems.forEach(item => {
+      const key = `${item.materialCode}|${item.materialName}|${item.spec}`;
       if (!itemGroups[key]) {
         itemGroups[key] = { 
-          materialCode: p.materialCode, 
-          materialName: p.name, 
-          spec: p.spec, 
-          totalQty: 0 
+          materialCode: item.materialCode, 
+          materialName: item.materialName, 
+          spec: item.spec, 
+          unit: item.unit,
+          totalQty: 0,
+          unitPrice: item.unitPrice
         };
       }
-      itemGroups[key].totalQty += p.qty;
+      itemGroups[key].totalQty += item.qty;
     });
+
+    const newItems = Object.values(itemGroups).map((g, idx) => ({
+      id: `LI-${now}-${idx}`,
+      materialCode: g.materialCode,
+      materialName: g.materialName,
+      spec: g.spec,
+      unit: g.unit,
+      qty: g.totalQty,
+      unitPrice: g.unitPrice
+    }));
 
     const newPlan: Plan = {
       id: `PLN-MERGE-${now}`,
       reqLineId: first.reqLineId,
-      materialCode: selectedPlans.length === 1 ? first.materialCode : 'MULTIPLE',
-      name: `[合并汇总] ${first.name}${selectedPlans.length > 1 ? ` (多物料汇总)` : ''}`,
-      spec: selectedPlans.length === 1 ? first.spec : '混合规格',
+      materialCode: newItems.length === 1 ? newItems[0].materialCode : 'MULTIPLE',
+      name: newItems.length === 1 ? newItems[0].materialName : `[合并汇总] ${first.name} 等 ${selectedPlans.length} 项`,
+      spec: newItems.length === 1 ? newItems[0].spec : '混合规格',
       qty: totalQty,
-      status: PlanStatus.APPROVED,
+      auditStatus: AuditStatus.APPROVED,
+      processStatus: PlanProcessStatus.NORMAL,
       createdAt: new Date().toLocaleString(),
-      items: Object.values(itemGroups).map((g, idx) => ({
-        id: `LI-${now}-${idx}`,
-        materialCode: g.materialCode,
-        materialName: g.materialName,
-        spec: g.spec,
-        unit: '个',
-        qty: g.totalQty,
-        unitPrice: 0
-      }))
+      items: newItems
     };
 
     const newLineage: LineageRelation = {
@@ -324,7 +402,7 @@ export default function App() {
 
     const updatedPlans = plans.map(p => {
       if (ids.includes(p.id)) {
-        return { ...p, status: PlanStatus.MERGED };
+        return { ...p, processStatus: PlanProcessStatus.MERGED };
       }
       return p;
     });
@@ -364,8 +442,8 @@ export default function App() {
       const updatedTarget: Requirement = {
         ...target,
         qty: remainingItems.reduce((sum, i) => sum + i.qty, 0),
-        items: remainingItems,
-        status: remainingItems.length > 0 ? target.status : ReqStatus.COMPLETED // If nothing left, mark as completed/split
+        items: remainingItems.length > 0 ? remainingItems : target.items, // Keep original items if fully split for display
+        processStatus: remainingItems.length > 0 ? target.processStatus : ReqProcessStatus.SPLIT
       };
 
       const newReq: Requirement | null = extractedItems.length > 0 ? {
@@ -376,7 +454,8 @@ export default function App() {
         qty: extractedItems.reduce((sum, i) => sum + i.qty, 0),
         assignedQty: 0,
         unitPrice: target.unitPrice,
-        status: ReqStatus.DRAFT,
+        auditStatus: AuditStatus.DRAFT,
+        processStatus: ReqProcessStatus.NORMAL,
         createdAt: new Date().toLocaleString(),
         creator: '系统拆分',
         items: extractedItems
@@ -421,7 +500,7 @@ export default function App() {
         ...target,
         qty: remainingItems.reduce((sum, i) => sum + i.qty, 0),
         items: remainingItems,
-        status: remainingItems.length > 0 ? target.status : PlanStatus.SPLIT
+        processStatus: remainingItems.length > 0 ? target.processStatus : PlanProcessStatus.SPLIT
       };
 
       const newPlan: Plan | null = extractedItems.length > 0 ? {
@@ -431,7 +510,8 @@ export default function App() {
         name: extractedItems.length === 1 ? extractedItems[0].materialName : `[拆分] ${target.name}`,
         spec: extractedItems.length === 1 ? extractedItems[0].spec : '混合规格',
         qty: extractedItems.reduce((sum, i) => sum + i.qty, 0),
-        status: PlanStatus.DRAFT,
+        auditStatus: target.auditStatus === AuditStatus.APPROVED ? AuditStatus.APPROVED : AuditStatus.DRAFT,
+        processStatus: PlanProcessStatus.NORMAL,
         createdAt: new Date().toLocaleString(),
         items: extractedItems
       } : null;
@@ -456,17 +536,32 @@ export default function App() {
     setSplitTargetId(null);
   };
 
-  const handleAssignPlan = (ids: string[], user: string) => {
+  const handleAssignPlan = (ids: string[]) => {
+    setAssignTargetIds(ids);
+    setAssignModalOpen(true);
+  };
+
+  const confirmAssign = (user: string, dept: string) => {
     const updatedPlans = plans.map(p => {
-      if (ids.includes(p.id)) {
-        return { ...p, assignedTo: user, status: PlanStatus.ASSIGNED };
+      if (assignTargetIds.includes(p.id)) {
+        return { 
+          ...p, 
+          assignedTo: user, 
+          processStatus: PlanProcessStatus.ASSIGNED,
+          procurementManager: user,
+          procurementDept: dept
+        };
       }
       return p;
     });
     setPlans(updatedPlans);
+    setAssignModalOpen(false);
+    setAssignTargetIds([]);
+    setCurrentView('PLAN_POOL');
   };
 
   const handleSubcontract = (ids: string[]) => {
+    if (ids.length !== 1) return;
     const selected = plans.filter(p => ids.includes(p.id));
     setSubcontractTargetPlans(selected);
     setSubcontractModalOpen(true);
@@ -490,7 +585,7 @@ export default function App() {
       const newItems = plan.items.map(item => {
         if (itemIds.includes(item.id)) {
           const extractQty = itemQtyMap[item.id];
-          subcontractItems.push({ ...item, qty: extractQty });
+          subcontractItems.push({ ...item, qty: extractQty, sourcePlanId: plan.id });
           return { ...item, qty: item.qty - extractQty };
         }
         return item;
@@ -500,7 +595,7 @@ export default function App() {
         ...plan,
         items: newItems,
         qty: newItems.reduce((sum, i) => sum + i.qty, 0),
-        status: newItems.length === 0 ? PlanStatus.SUBCONTRACTED : plan.status
+        processStatus: newItems.length === 0 ? PlanProcessStatus.SUBCONTRACTED : plan.processStatus
       };
     });
 
@@ -508,7 +603,7 @@ export default function App() {
       id: `SUB-${now}`,
       name: name,
       planIds: Array.from(new Set(subcontractTargetPlans.map(p => p.id))),
-      status: '进行中',
+      status: '审核通过',
       createdAt: new Date().toLocaleString(),
       items: subcontractItems
     };
@@ -531,6 +626,48 @@ export default function App() {
     setLineage([...lineage, newLineage]);
   };
 
+  const handleDeleteSubcontract = (id: string) => {
+    const sub = subcontracts.find(s => s.id === id);
+    if (!sub) return;
+
+    const subItems = sub.items || [];
+    
+    // Restore quantities to plans
+    const updatedPlans = plans.map(plan => {
+      if (!sub.planIds.includes(plan.id)) return plan;
+
+      const itemsToReturn = subItems.filter(item => item.sourcePlanId === plan.id);
+      if (itemsToReturn.length === 0) return plan;
+
+      let newItems = [...(plan.items || [])];
+      
+      itemsToReturn.forEach(itemToReturn => {
+        const existingItem = newItems.find(i => i.id === itemToReturn.id);
+        if (existingItem) {
+          existingItem.qty += itemToReturn.qty;
+        } else {
+          // If item was fully removed, add it back
+          newItems.push({ ...itemToReturn });
+        }
+      });
+
+      return {
+        ...plan,
+        items: newItems,
+        qty: newItems.reduce((sum, i) => sum + i.qty, 0),
+        processStatus: plan.processStatus === PlanProcessStatus.SUBCONTRACTED ? PlanProcessStatus.NORMAL : plan.processStatus
+      };
+    });
+
+    setPlans(updatedPlans);
+    setSubcontracts(subcontracts.filter(s => s.id !== id));
+  };
+
+  const handleCreateProjectFromSub = (subs: Subcontract[]) => {
+    setSelectedSubsForProject(subs);
+    setCurrentView('CREATE_PROJECT');
+  };
+
   const handleSaveReq = (req: Requirement) => {
     setRequirements([req, ...requirements]);
     setCurrentView('REQ_APP');
@@ -547,6 +684,29 @@ export default function App() {
     setViewingDoc(updatedDoc);
   };
 
+  const handleSubmitDoc = (id: string) => {
+    setRequirements(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      auditStatus: r.auditStatus === AuditStatus.CHANGE_DRAFT ? AuditStatus.CHANGE_PENDING : 
+                  r.auditStatus === AuditStatus.TERMINATE_DRAFT ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING 
+    } : r));
+    setPlans(prev => prev.map(p => p.id === id ? { 
+      ...p, 
+      auditStatus: p.auditStatus === AuditStatus.CHANGE_DRAFT ? AuditStatus.CHANGE_PENDING : 
+                  p.auditStatus === AuditStatus.TERMINATE_DRAFT ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING 
+    } : p));
+  };
+
+  const handleChangeDoc = (id: string, reason: string) => {
+    setRequirements(prev => prev.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.CHANGE_DRAFT, changeReason: reason } : r));
+    setPlans(prev => prev.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.CHANGE_DRAFT, changeReason: reason } : p));
+  };
+
+  const handleTerminateDoc = (id: string, reason: string) => {
+    setRequirements(prev => prev.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.TERMINATE_DRAFT, terminationReason: reason } : r));
+    setPlans(prev => prev.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.TERMINATE_DRAFT, terminationReason: reason } : p));
+  };
+
   const handleSaveProject = (project: ProjectApproval) => {
     setProjects(prev => [...prev, project]);
     setCurrentView('PROJECT_APP');
@@ -554,13 +714,41 @@ export default function App() {
 
   const handleApprove = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
     if (type === 'REQ') {
-      setRequirements(requirements.map(r => r.id === id ? { ...r, status: ReqStatus.APPROVED } : r));
+      setRequirements(requirements.map(r => {
+        if (r.id === id) {
+          if (r.auditStatus === AuditStatus.TERMINATE_PENDING) {
+            return { ...r, auditStatus: AuditStatus.TERMINATED, processStatus: ReqProcessStatus.TERMINATED };
+          }
+          return { ...r, auditStatus: AuditStatus.APPROVED };
+        }
+        return r;
+      }));
     } else if (type === 'PLAN') {
-      setPlans(plans.map(p => p.id === id ? { ...p, status: PlanStatus.APPROVED } : p));
+      setPlans(plans.map(p => {
+        if (p.id === id) {
+          if (p.auditStatus === AuditStatus.TERMINATE_PENDING) {
+            return { ...p, auditStatus: AuditStatus.TERMINATED, processStatus: PlanProcessStatus.TERMINATED };
+          }
+          return { ...p, auditStatus: AuditStatus.APPROVED };
+        }
+        return p;
+      }));
     } else if (type === 'PROJECT') {
       setProjects(projects.map(p => p.id === id ? { ...p, status: '审核通过' } : p));
     } else if (type === 'SUB') {
       setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核通过' } : s));
+    }
+  };
+
+  const handleReject = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
+    if (type === 'REQ') {
+      setRequirements(requirements.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.REJECTED } : r));
+    } else if (type === 'PLAN') {
+      setPlans(plans.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.REJECTED } : p));
+    } else if (type === 'PROJECT') {
+      setProjects(projects.map(p => p.id === id ? { ...p, status: '审核不通过' } : p));
+    } else if (type === 'SUB') {
+      setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核不通过' } : s));
     }
   };
 
@@ -583,6 +771,10 @@ export default function App() {
             <TopMenuLink label="采购需求" active={currentView === 'REQ_APP' || currentView === 'REQ_POOL' || currentView === 'CREATE_REQ'} onClick={() => setCurrentView('REQ_APP')} />
             <TopMenuLink label="采购计划" active={currentView === 'PLAN_POOL' || currentView === 'SUB_POOL'} onClick={() => setCurrentView('PLAN_POOL')} />
             <TopMenuLink label="采购立项" active={currentView === 'PROJECT_APP' || currentView === 'CREATE_PROJECT'} onClick={() => setCurrentView('PROJECT_APP')} />
+            <TopMenuLink label="需求变更" active={currentView === 'REQ_CHANGE'} onClick={() => setCurrentView('REQ_CHANGE')} />
+            <TopMenuLink label="需求取消" active={currentView === 'REQ_TERMINATE'} onClick={() => setCurrentView('REQ_TERMINATE')} />
+            <TopMenuLink label="计划变更" active={currentView === 'PLAN_CHANGE'} onClick={() => setCurrentView('PLAN_CHANGE')} />
+            <TopMenuLink label="计划取消" active={currentView === 'PLAN_TERMINATE'} onClick={() => setCurrentView('PLAN_TERMINATE')} />
             <TopMenuLink label="招标采购" active={false} />
             <TopMenuLink icon={<Menu className="w-4 h-4" />} />
           </nav>
@@ -749,7 +941,11 @@ export default function App() {
                     lineage={lineage}
                     onClose={() => setCurrentView('REQ_APP')} 
                     onUpdate={handleUpdateDoc}
+                    onSubmit={handleSubmitDoc}
+                    onChange={handleChangeDoc}
+                    onTerminate={handleTerminateDoc}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onReject={(id) => handleReject(id, 'REQ')}
                   />
                 </motion.div>
               )}
@@ -761,7 +957,11 @@ export default function App() {
                     lineage={lineage}
                     onClose={() => setCurrentView('PLAN_POOL')} 
                     onUpdate={handleUpdateDoc}
+                    onSubmit={handleSubmitDoc}
+                    onChange={handleChangeDoc}
+                    onTerminate={handleTerminateDoc}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onReject={(id) => handleReject(id, 'PLAN')}
                   />
                 </motion.div>
               )}
@@ -809,6 +1009,8 @@ export default function App() {
                     onBack={() => setCurrentView('PLAN_POOL')} 
                     onView={(sub) => handleViewDoc(sub, 'SUB')}
                     onApprove={(id) => handleApprove(id, 'SUB')}
+                    onDelete={handleDeleteSubcontract}
+                    onCreateProject={handleCreateProjectFromSub}
                   />
                 </motion.div>
               )}
@@ -822,14 +1024,106 @@ export default function App() {
                   />
                 </motion.div>
               )}
+              {currentView === 'REQ_CHANGE' && (
+                <motion.div key="req-change" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <RequirementPool 
+                    requirements={requirements} 
+                    lineage={lineage}
+                    onPickToPlan={handlePickToPlan}
+                    onMerge={handleMergeReqs}
+                    onSplit={handleSplitReq}
+                    onView={(req) => handleViewDoc(req, 'REQ')}
+                    onApprove={(id) => handleApprove(id, 'REQ')}
+                    mode="CHANGE"
+                    onInitiate={() => {
+                      setPickApprovedType('REQ');
+                      setPickApprovedAction('CHANGE');
+                      setPickApprovedModalOpen(true);
+                    }}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'REQ_TERMINATE' && (
+                <motion.div key="req-terminate" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <RequirementPool 
+                    requirements={requirements} 
+                    lineage={lineage}
+                    onPickToPlan={handlePickToPlan}
+                    onMerge={handleMergeReqs}
+                    onSplit={handleSplitReq}
+                    onView={(req) => handleViewDoc(req, 'REQ')}
+                    onApprove={(id) => handleApprove(id, 'REQ')}
+                    mode="TERMINATE"
+                    onInitiate={() => {
+                      setPickApprovedType('REQ');
+                      setPickApprovedAction('TERMINATE');
+                      setPickApprovedModalOpen(true);
+                    }}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'PLAN_CHANGE' && (
+                <motion.div key="plan-change" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <PlanPool 
+                    plans={plans} 
+                    lineage={lineage}
+                    onAssign={handleAssignPlan}
+                    onSubcontract={handleSubcontract}
+                    onMerge={handleMergePlans}
+                    onSplit={handleSplitPlan}
+                    onView={(plan) => handleViewDoc(plan, 'PLAN')}
+                    onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onPickRequirements={(targetId) => {
+                      setPickReqTargetId(targetId);
+                      setPickReqModalOpen(true);
+                    }}
+                    mode="CHANGE"
+                    onInitiate={() => {
+                      setPickApprovedType('PLAN');
+                      setPickApprovedAction('CHANGE');
+                      setPickApprovedModalOpen(true);
+                    }}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'PLAN_TERMINATE' && (
+                <motion.div key="plan-terminate" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <PlanPool 
+                    plans={plans} 
+                    lineage={lineage}
+                    onAssign={handleAssignPlan}
+                    onSubcontract={handleSubcontract}
+                    onMerge={handleMergePlans}
+                    onSplit={handleSplitPlan}
+                    onView={(plan) => handleViewDoc(plan, 'PLAN')}
+                    onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onPickRequirements={(targetId) => {
+                      setPickReqTargetId(targetId);
+                      setPickReqModalOpen(true);
+                    }}
+                    mode="TERMINATE"
+                    onInitiate={() => {
+                      setPickApprovedType('PLAN');
+                      setPickApprovedAction('TERMINATE');
+                      setPickApprovedModalOpen(true);
+                    }}
+                  />
+                </motion.div>
+              )}
               {currentView === 'CREATE_PROJECT' && (
                 <motion.div key="create-project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} className="h-full">
                   <CreateProjectApproval 
-                    onClose={() => setCurrentView('PROJECT_APP')} 
+                    onClose={() => {
+                      setCurrentView('PROJECT_APP');
+                      setSelectedSubsForProject([]);
+                    }} 
                     onSave={handleSaveProject}
                     onApprove={(id) => handleApprove(id, 'PROJECT')}
+                    onReject={(id) => handleReject(id, 'PROJECT')}
+                    onDeleteLot={(subId) => setSubcontracts(subcontracts.map(s => s.id === subId ? { ...s, status: '编辑中' } : s))}
                     plans={plans}
                     subcontracts={subcontracts}
+                    initialSubcontracts={selectedSubsForProject}
                   />
                 </motion.div>
               )}
@@ -839,6 +1133,8 @@ export default function App() {
                     onClose={() => setCurrentView('PROJECT_APP')} 
                     onSave={handleSaveProject}
                     onApprove={(id) => handleApprove(id, 'PROJECT')}
+                    onReject={(id) => handleReject(id, 'PROJECT')}
+                    onDeleteLot={(subId) => setSubcontracts(subcontracts.map(s => s.id === subId ? { ...s, status: '编辑中' } : s))}
                     plans={plans}
                     subcontracts={subcontracts}
                     project={viewingDoc as any}
@@ -854,6 +1150,7 @@ export default function App() {
                     onClose={() => setCurrentView('SUB_POOL')} 
                     onUpdate={handleUpdateDoc}
                     onApprove={(id) => handleApprove(id, 'SUB')}
+                    onReject={(id) => handleReject(id, 'SUB')}
                   />
                 </motion.div>
               )}
@@ -932,6 +1229,35 @@ export default function App() {
         }}
         requirements={requirements}
       />
+
+      <AssignModal
+        isOpen={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        onConfirm={confirmAssign}
+        targetIds={assignTargetIds}
+      />
+
+      {pickApprovedModalOpen && (
+        <PickApprovedModal 
+          type={pickApprovedType}
+          actionType={pickApprovedAction}
+          requirements={requirements}
+          plans={plans}
+          onClose={() => setPickApprovedModalOpen(false)}
+          onPick={(id) => {
+            setPickApprovedModalOpen(false);
+            if (pickApprovedAction === 'CHANGE') {
+              handleChangeDoc(id, '');
+            } else {
+              handleTerminateDoc(id, '');
+            }
+            const doc = pickApprovedType === 'REQ' ? requirements.find(r => r.id === id) : plans.find(p => p.id === id);
+            if (doc) {
+              handleViewDoc(doc, pickApprovedType);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Subcontract, LineageRelation } from '../types';
+import React, { useState, useMemo } from 'react';
+import { Subcontract, LineageRelation, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, Package, ArrowRight, X, Check, ClipboardList, Edit3, Eye, FileText, History, Pencil, Settings, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Package, ArrowRight, X, Check, ClipboardList, Edit3, Eye, FileText, History, Pencil, Settings, CheckCircle2, Trash2, Plus, Briefcase, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SearchForm } from './SearchForm';
 
@@ -11,10 +11,17 @@ interface SubcontractPoolProps {
   onBack?: () => void;
   onView?: (sub: Subcontract) => void;
   onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onCreateProject?: (subs: Subcontract[]) => void;
 }
 
-export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, lineage, onBack, onView, onApprove }) => {
+export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, lineage, onBack, onView, onApprove, onReject, onDelete, onCreateProject }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchParams, setSearchParams] = useState<SearchParams>({
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
@@ -22,58 +29,117 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
 
   const hasHistory = (id: string) => lineage.some(l => l.targetIds.includes(id));
 
+  const activeSubcontracts = useMemo(() => {
+    let filtered = [...subcontracts];
+
+    // Apply filters
+    if (searchParams.content) {
+      filtered = filtered.filter(s => s.name.toLowerCase().includes(searchParams.content!.toLowerCase()));
+    }
+    if (searchParams.id) {
+      filtered = filtered.filter(s => s.id.toLowerCase().includes(searchParams.id!.toLowerCase()));
+    }
+    if (searchParams.dept) {
+      filtered = filtered.filter(s => '系统管理部'.toLowerCase().includes(searchParams.dept!.toLowerCase()));
+    }
+    if (searchParams.status) {
+      filtered = filtered.filter(s => s.status === searchParams.status);
+    }
+    if (searchParams.date) {
+      filtered = filtered.filter(s => s.createdAt.includes(searchParams.date!));
+    }
+
+    // Apply sorting
+    const { sortBy, sortOrder } = searchParams;
+    filtered.sort((a, b) => {
+      let valA: any = a[sortBy as keyof Subcontract] || '';
+      let valB: any = b[sortBy as keyof Subcontract] || '';
+
+      if (sortBy === 'createdAt') {
+        valA = new Date(valA).getTime();
+        valB = new Date(valB).getTime();
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [subcontracts, searchParams]);
+
+  const selectedSubcontracts = useMemo(() => 
+    activeSubcontracts.filter(s => selectedIds.includes(s.id)),
+  [selectedIds, activeSubcontracts]);
+
+  const isSamePlan = useMemo(() => {
+    if (selectedSubcontracts.length <= 1) return true;
+    const firstPlanIds = [...selectedSubcontracts[0].planIds].sort().join(',');
+    return selectedSubcontracts.every(s => [...s.planIds].sort().join(',') === firstPlanIds);
+  }, [selectedSubcontracts]);
+
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Search Form */}
-      <SearchForm type="SUB" />
+      <SearchForm 
+        type="SUB" 
+        onSearch={setSearchParams}
+        onReset={() => setSearchParams({ sortBy: 'createdAt', sortOrder: 'desc' })}
+      />
 
       {/* Action Bar */}
       <div className="bg-gray-50 border-b border-erp-border px-4 py-2 flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          {onBack && (
-            <button 
-              onClick={onBack}
-              className="flex items-center space-x-1 text-erp-secondary hover:text-blue-700 font-medium text-xs mr-2"
-            >
-              <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-              <span>返回计划池</span>
-            </button>
-          )}
+          <button 
+            onClick={onBack}
+            className="flex items-center space-x-1.5 px-4 py-1.5 bg-erp-secondary text-white text-xs font-medium rounded-[2px] hover:bg-blue-600 transition-all shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>新增分包</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (selectedSubcontracts.length > 0) onCreateProject?.(selectedSubcontracts);
+            }}
+            disabled={selectedIds.length === 0 || !isSamePlan}
+            title={!isSamePlan ? "不同计划的分包不能一起进行立项" : ""}
+            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium transition-colors shadow-sm flex items-center space-x-1.5 ${
+              selectedIds.length === 0 || !isSamePlan ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>生成采购立项</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm('确定要删除选中的分包吗？相关物料将返回至原始计划。')) {
+                selectedIds.forEach(id => onDelete?.(id));
+                setSelectedIds([]);
+              }
+            }}
+            disabled={selectedIds.length === 0}
+            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors flex items-center space-x-1.5 ${
+              selectedIds.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed bg-white' : 'border-red-200 text-red-600 hover:bg-red-50 bg-white shadow-sm'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>删除分包</span>
+          </button>
+
+          <div className="h-4 w-[1px] bg-gray-300 mx-2" />
+          
           <span className="text-xs font-medium text-erp-text-sub">
             {selectedIds.length > 0 ? `已选择 ${selectedIds.length} 项` : '未选择项'}
           </span>
-          <button
-            disabled={selectedIds.length === 0}
-            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium transition-colors shadow-sm ${
-              selectedIds.length === 0 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
-            }`}
-          >
-            <span>生成采购合同</span>
-          </button>
-          <button
-            disabled={selectedIds.length < 2}
-            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors bg-white ${
-              selectedIds.length < 2 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 shadow-sm'
-            }`}
-          >
-            <span>合并分包</span>
-          </button>
-          <button
-            disabled={selectedIds.length !== 1}
-            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors bg-white ${
-              selectedIds.length !== 1 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 shadow-sm'
-            }`}
-          >
-            <span>拆分分包</span>
-          </button>
-          <button
-            disabled={selectedIds.length === 0}
-            className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors bg-white ${
-              selectedIds.length === 0 ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 shadow-sm'
-            }`}
-          >
-            <span>导出单据</span>
-          </button>
+          
+          {!isSamePlan && (
+            <div className="flex items-center space-x-1.5 px-3 py-1 bg-red-50 text-red-600 rounded border border-red-100 animate-pulse">
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold">注意：所选分包属于不同计划，无法合并立项</span>
+            </div>
+          )}
         </div>
         
         {selectedIds.length > 0 && (
@@ -95,9 +161,9 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary"
-                  checked={selectedIds.length === subcontracts.length && subcontracts.length > 0}
+                  checked={selectedIds.length === activeSubcontracts.length && activeSubcontracts.length > 0}
                   onChange={(e) =>
-                    setSelectedIds(e.target.checked ? subcontracts.map((r) => r.id) : [])
+                    setSelectedIds(e.target.checked ? activeSubcontracts.map((r) => r.id) : [])
                   }
                 />
               </th>
@@ -111,7 +177,7 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
             </tr>
           </thead>
           <tbody className="divide-y divide-erp-border">
-            {subcontracts.map((sub, index) => (
+            {activeSubcontracts.map((sub, index) => (
               <tr
                 key={sub.id}
                 className={`hover:bg-blue-50/30 transition-colors text-xs ${
@@ -171,17 +237,34 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                     >
                       <Search className="w-3.5 h-3.5" />
                     </button>
-                    <button className="text-erp-secondary hover:text-blue-700" title="设置">
-                      <Settings className="w-3.5 h-3.5" />
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('确定要删除该分包吗？相关物料将返回至原始计划。')) {
+                          onDelete?.(sub.id);
+                        }
+                      }}
+                      className="text-red-500 hover:text-red-700" 
+                      title="删除"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     {onApprove && sub.status !== '审核通过' && (
-                      <button 
-                        onClick={() => onApprove(sub.id)}
-                        className="text-green-500 hover:text-green-700" 
-                        title="审核通过"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => onApprove(sub.id)}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => onReject?.(sub.id)}
+                          className="text-red-500 hover:text-red-700" 
+                          title="审核不通过"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </td>

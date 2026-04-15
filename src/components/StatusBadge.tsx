@@ -4,34 +4,42 @@
  */
 
 import React from 'react';
-import { ReqStatus, PlanStatus } from '../types';
+import { AuditStatus, ReqProcessStatus, PlanProcessStatus } from '../types';
 
 interface StatusBadgeProps {
-  status: ReqStatus | PlanStatus | string;
+  status: AuditStatus | ReqProcessStatus | PlanProcessStatus | string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const getStatusColor = (s: string) => {
     switch (s) {
-      case ReqStatus.APPROVED:
-      case PlanStatus.APPROVED:
+      case AuditStatus.APPROVED:
         return 'bg-green-100 text-green-700 border-green-200';
-      case ReqStatus.EXECUTING:
-      case PlanStatus.ASSIGNED:
+      case ReqProcessStatus.COMPLETED:
+      case PlanProcessStatus.ASSIGNED:
         return 'bg-blue-100 text-blue-700 border-blue-200';
-      case ReqStatus.COMPLETED:
-      case PlanStatus.SUBCONTRACTED:
+      case PlanProcessStatus.SUBCONTRACTED:
         return 'bg-gray-100 text-gray-700 border-gray-200';
-      case ReqStatus.DRAFT:
-      case PlanStatus.DRAFT:
+      case AuditStatus.DRAFT:
         return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case ReqStatus.CANCELLED:
-      case PlanStatus.CANCELLED:
+      case AuditStatus.REJECTED:
+      case '审核不通过':
         return 'bg-red-100 text-red-700 border-red-200';
-      case ReqStatus.SPLIT:
-      case ReqStatus.MERGED:
-      case PlanStatus.SPLIT:
-      case PlanStatus.MERGED:
+      case AuditStatus.CHANGE_DRAFT:
+      case AuditStatus.TERMINATE_DRAFT:
+        return 'bg-blue-50 text-blue-600 border-blue-100';
+      case AuditStatus.CHANGE_PENDING:
+      case AuditStatus.TERMINATE_PENDING:
+        return 'bg-orange-50 text-orange-600 border-orange-100';
+      case AuditStatus.TERMINATED:
+        return 'bg-gray-100 text-gray-500 border-gray-200';
+      case ReqProcessStatus.CANCELLED:
+      case PlanProcessStatus.CANCELLED:
+        return 'bg-red-100 text-red-700 border-red-200';
+      case ReqProcessStatus.SPLIT:
+      case ReqProcessStatus.MERGED:
+      case PlanProcessStatus.SPLIT:
+      case PlanProcessStatus.MERGED:
         return 'bg-purple-100 text-purple-700 border-purple-200';
       default:
         return 'bg-gray-100 text-gray-700 border-gray-200';

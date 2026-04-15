@@ -143,8 +143,10 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
               <Package className="w-4 h-4 text-blue-600" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-800">自定义组建分包</h3>
-              <p className="text-[10px] text-gray-500 mt-0.5">从选中的采购计划中挑选明细物料进行分包组建</p>
+              <h3 className="text-sm font-bold text-gray-800">组建分包</h3>
+              <p className="text-[10px] text-gray-500 mt-0.5">
+                正在为计划 <span className="font-mono font-bold text-blue-600">{selectedPlans[0]?.id}</span> 组建分包明细
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -201,7 +203,6 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
                   <th className="px-4 py-3">规格型号</th>
                   <th className="px-4 py-3 text-right">计划数量</th>
                   <th className="px-4 py-3 text-center w-32">分包数量</th>
-                  <th className="px-4 py-3">所属计划</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-erp-border">
@@ -239,9 +240,6 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
                         max={item.qty}
                         step={0.01}
                       />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-mono">{item.planId}</span>
                     </td>
                   </tr>
                 ))}

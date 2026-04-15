@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plan, PlanStatus, LineItem } from '../types';
+import { Plan, AuditStatus, PlanProcessStatus, LineItem } from '../types';
 import { X, Search, FileText } from 'lucide-react';
 
 interface PickPlanModalProps {
@@ -13,7 +13,7 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const approvedPlans = plans.filter(p => p.status === PlanStatus.APPROVED || p.status === PlanStatus.SUBCONTRACTED);
+  const approvedPlans = plans.filter(p => p.auditStatus === AuditStatus.APPROVED || p.processStatus === PlanProcessStatus.SUBCONTRACTED);
   const filteredPlans = approvedPlans.filter(p => 
     p.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())

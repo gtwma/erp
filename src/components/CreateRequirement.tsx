@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Requirement, ReqStatus } from '../types';
+import { Requirement, AuditStatus, ReqProcessStatus } from '../types';
 import { X, Save, AlertCircle, ChevronDown, Plus, Trash2, ClipboardList, Package, Search } from 'lucide-react';
 import { MATERIAL_MASTER } from '../constants';
 
@@ -88,6 +88,14 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
 
   const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
     e.preventDefault();
+
+    // Validate that all items have material code and name
+    const invalidItems = items.filter(item => !item.materialCode || !item.materialName);
+    if (invalidItems.length > 0 && !isDraft) {
+      alert('每个采购需求明细必须包含物料信息（名称和编码）！');
+      return;
+    }
+
     const newReq: Requirement = {
       id: `REQ-${Date.now()}`,
       name: formData.name || '采购申请单',
@@ -96,7 +104,8 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
       qty: items.reduce((sum, item) => sum + item.qty, 0),
       assignedQty: 0,
       unitPrice: items[0].unitPrice,
-      status: isDraft ? ReqStatus.DRAFT : ReqStatus.PENDING,
+      auditStatus: isDraft ? AuditStatus.DRAFT : AuditStatus.PENDING,
+      processStatus: ReqProcessStatus.NORMAL,
       createdAt: new Date().toLocaleString(),
       creator: formData.applyPerson,
       items: items.map(item => ({

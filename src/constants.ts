@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Requirement, ReqStatus, Plan, PlanStatus, Subcontract, LineageRelation, ProjectApproval } from './types';
+import { Requirement, AuditStatus, ReqProcessStatus, Plan, PlanProcessStatus, Subcontract, LineageRelation, ProjectApproval } from './types';
 
 export const MOCK_REQUIREMENTS: Requirement[] = [
   {
@@ -14,7 +14,8 @@ export const MOCK_REQUIREMENTS: Requirement[] = [
     qty: 1000,
     assignedQty: 400,
     unitPrice: 0.5,
-    status: ReqStatus.EXECUTING,
+    auditStatus: AuditStatus.APPROVED,
+    processStatus: ReqProcessStatus.NORMAL,
     createdAt: '2026-04-07 09:00',
     creator: '张三',
   },
@@ -26,7 +27,8 @@ export const MOCK_REQUIREMENTS: Requirement[] = [
     qty: 500,
     assignedQty: 0,
     unitPrice: 0.2,
-    status: ReqStatus.APPROVED,
+    auditStatus: AuditStatus.APPROVED,
+    processStatus: ReqProcessStatus.NORMAL,
     createdAt: '2026-04-07 10:30',
     creator: '李四',
   },
@@ -38,7 +40,8 @@ export const MOCK_REQUIREMENTS: Requirement[] = [
     qty: 200,
     assignedQty: 0,
     unitPrice: 0.5,
-    status: ReqStatus.APPROVED,
+    auditStatus: AuditStatus.APPROVED,
+    processStatus: ReqProcessStatus.NORMAL,
     createdAt: '2026-04-07 11:00',
     creator: '王五',
   },
@@ -50,7 +53,8 @@ export const MOCK_REQUIREMENTS: Requirement[] = [
     qty: 50,
     assignedQty: 0,
     unitPrice: 15.0,
-    status: ReqStatus.APPROVED,
+    auditStatus: AuditStatus.APPROVED,
+    processStatus: ReqProcessStatus.NORMAL,
     createdAt: '2026-04-07 12:00',
     creator: '赵六',
   },
@@ -65,7 +69,8 @@ export const MOCK_PLANS: Plan[] = [
     spec: 'M8*25',
     qty: 400,
     assignedTo: '采购员A',
-    status: PlanStatus.ASSIGNED,
+    auditStatus: AuditStatus.APPROVED,
+    processStatus: PlanProcessStatus.ASSIGNED,
     createdAt: '2026-04-07 14:00',
   },
 ];

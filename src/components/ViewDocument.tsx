@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { X, FileText, ChevronDown, Printer, Download, Share2, History, Edit3, Save, CheckCircle2 } from 'lucide-react';
-import { Requirement, Plan, Subcontract, ReqStatus, PlanStatus, LineageRelation } from '../types';
+import { Requirement, Plan, Subcontract, AuditStatus, ReqProcessStatus, PlanProcessStatus, LineageRelation } from '../types';
 
 interface ViewDocumentProps {
   document: Requirement | Plan | Subcontract;
@@ -14,10 +14,19 @@ interface ViewDocumentProps {
   onClose: () => void;
   onUpdate?: (doc: Requirement | Plan | Subcontract) => void;
   onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onSubmit?: (id: string) => void;
+  onChange?: (id: string, reason: string) => void;
+  onTerminate?: (id: string, reason: string) => void;
 }
 
-export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, lineage, onClose, onUpdate, onApprove }) => {
-  const [isEditing, setIsEditing] = useState(false);
+export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, lineage, onClose, onUpdate, onApprove, onReject, onSubmit, onChange, onTerminate }) => {
+  const auditStatus = (document as any).auditStatus || (document as any).status;
+  const isDraftOrRejected = auditStatus === AuditStatus.DRAFT || auditStatus === AuditStatus.REJECTED || auditStatus === AuditStatus.CHANGE_DRAFT || auditStatus === AuditStatus.TERMINATE_DRAFT || auditStatus === '编辑中' || auditStatus === '审核不通过';
+  const isChangePending = auditStatus === AuditStatus.CHANGE_PENDING || auditStatus === AuditStatus.TERMINATE_PENDING;
+  const isTerminated = auditStatus === AuditStatus.TERMINATED;
+  
+  const [isEditing, setIsEditing] = useState(isDraftOrRejected);
   const [editData, setEditData] = useState({ ...document });
 
   const isReq = type === 'REQ';
@@ -31,7 +40,31 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, line
     if (onUpdate) {
       onUpdate(editData as any);
     }
-    setIsEditing(false);
+    // If it was PENDING or APPROVED and we were editing (Modify Document), we might want to stay in view mode after save
+    if (!isDraftOrRejected) {
+      setIsEditing(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (onSubmit) {
+      onSubmit(document.id);
+      onClose();
+    }
+  };
+
+  const handleChange = () => {
+    if (onChange) {
+      onChange(document.id, '');
+      setIsEditing(true);
+    }
+  };
+
+  const handleTerminate = () => {
+    if (onTerminate) {
+      onTerminate(document.id, '');
+      setIsEditing(true);
+    }
   };
 
   const getQty = () => {
@@ -48,41 +81,95 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, line
       <div className="px-6 py-3 border-b border-erp-border flex justify-between items-center bg-white shrink-0">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 mr-2">
-            {isEditing ? (
-              <button 
-                onClick={handleSave}
-                className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-500 text-white text-xs font-medium rounded-[2px] hover:bg-green-600 transition-all shadow-sm"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>保存修改</span>
-              </button>
-            ) : (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="flex items-center space-x-1.5 px-4 py-1.5 bg-erp-secondary text-white text-xs font-medium rounded-[2px] hover:bg-blue-600 transition-all shadow-sm"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>修改单据</span>
-              </button>
-            )}
+            {/* Action Buttons based on Status */}
+            {isDraftOrRejected ? (
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={handleSave}
+                  className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-500 text-white text-xs font-medium rounded-[2px] hover:bg-green-600 transition-all shadow-sm"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>修改保存</span>
+                </button>
+                <button 
+                  onClick={handleSubmit}
+                  className="flex items-center space-x-1.5 px-4 py-1.5 bg-erp-secondary text-white text-xs font-medium rounded-[2px] hover:bg-blue-600 transition-all shadow-sm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>提交申请</span>
+                </button>
+              </div>
+            ) : auditStatus === AuditStatus.PENDING || auditStatus === AuditStatus.CHANGE_PENDING || auditStatus === '待审核' ? (
+              <div className="flex items-center space-x-2">
+                {onApprove && (
+                  <button 
+                    onClick={() => {
+                      onApprove(document.id);
+                      onClose();
+                    }}
+                    className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-[2px] hover:bg-green-700 transition-all shadow-sm"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>审核通过</span>
+                  </button>
+                )}
+                {onReject && (
+                  <button 
+                    onClick={() => {
+                      onReject(document.id);
+                      onClose();
+                    }}
+                    className="flex items-center space-x-1.5 px-4 py-1.5 bg-red-600 text-white text-xs font-medium rounded-[2px] hover:bg-red-700 transition-all shadow-sm"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>审核不通过</span>
+                  </button>
+                )}
+              </div>
+            ) : auditStatus === AuditStatus.APPROVED || auditStatus === '审核通过' ? (
+              <div className="flex items-center space-x-2">
+                {isEditing ? (
+                  <button 
+                    onClick={handleSave}
+                    className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-500 text-white text-xs font-medium rounded-[2px] hover:bg-green-600 transition-all shadow-sm"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>保存修改</span>
+                  </button>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-erp-secondary text-white text-xs font-medium rounded-[2px] hover:bg-blue-600 transition-all shadow-sm"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>修改单据</span>
+                    </button>
+                    <button 
+                      onClick={handleChange}
+                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-orange-500 text-white text-xs font-medium rounded-[2px] hover:bg-orange-600 transition-all shadow-sm"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>变更</span>
+                    </button>
+                    <button 
+                      onClick={handleTerminate}
+                      className="flex items-center space-x-1.5 px-4 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-[2px] hover:bg-gray-700 transition-all shadow-sm"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>终止</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
+
             <button 
               onClick={onClose}
               className="px-4 py-1.5 border border-gray-300 rounded-[2px] text-xs font-medium text-gray-600 hover:bg-gray-50 transition-all bg-white"
             >
               返回
             </button>
-            {onApprove && document.status !== ReqStatus.APPROVED && document.status !== PlanStatus.APPROVED && document.status !== '审核通过' && (
-              <button 
-                onClick={() => {
-                  onApprove(document.id);
-                  onClose();
-                }}
-                className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-600 text-white text-xs font-medium rounded-[2px] hover:bg-green-700 transition-all shadow-sm"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>审核通过</span>
-              </button>
-            )}
           </div>
           <div className="h-6 w-px bg-gray-200 mx-2"></div>
           <div className="flex flex-col">
@@ -92,7 +179,7 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, line
               <span className="w-px h-3 bg-gray-300"></span>
               <span>创建时间: {document.createdAt}</span>
               <span className="w-px h-3 bg-gray-300"></span>
-              <span>状态: <span className="text-blue-500 font-medium">{document.status}</span></span>
+              <span>状态: <span className="text-blue-500 font-medium">{(document as any).auditStatus || (document as any).status}</span></span>
             </div>
           </div>
         </div>
@@ -157,6 +244,38 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({ document, type, line
                 <span className="w-32 text-right text-xs text-gray-500 shrink-0">单据编号:</span>
                 <span className="text-xs text-blue-600 font-mono font-medium">{document.id}</span>
               </div>
+
+              {(auditStatus === AuditStatus.CHANGE_DRAFT || auditStatus === AuditStatus.CHANGE_PENDING || (document as any).changeReason) && (
+                <div className="col-span-2 flex items-start space-x-4">
+                  <span className="w-32 text-right text-xs text-gray-500 shrink-0">变更理由:</span>
+                  {isEditing ? (
+                    <textarea 
+                      className="flex-1 border border-erp-border rounded p-2 text-xs outline-none focus:border-erp-secondary h-16 bg-white"
+                      value={(editData as any).changeReason || ''}
+                      onChange={e => setEditData({ ...editData, changeReason: e.target.value } as any)}
+                      placeholder="请输入变更理由..."
+                    />
+                  ) : (
+                    <span className="text-xs text-gray-800 leading-relaxed">{(document as any).changeReason}</span>
+                  )}
+                </div>
+              )}
+
+              {(auditStatus === AuditStatus.TERMINATE_DRAFT || auditStatus === AuditStatus.TERMINATE_PENDING || auditStatus === AuditStatus.TERMINATED || (document as any).terminationReason) && (
+                <div className="col-span-2 flex items-start space-x-4">
+                  <span className="w-32 text-right text-xs text-gray-500 shrink-0">取消理由:</span>
+                  {isEditing ? (
+                    <textarea 
+                      className="flex-1 border border-erp-border rounded p-2 text-xs outline-none focus:border-erp-secondary h-16 bg-white"
+                      value={(editData as any).terminationReason || ''}
+                      onChange={e => setEditData({ ...editData, terminationReason: e.target.value } as any)}
+                      placeholder="请输入取消理由..."
+                    />
+                  ) : (
+                    <span className="text-xs text-gray-800 leading-relaxed">{(document as any).terminationReason}</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

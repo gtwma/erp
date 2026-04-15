@@ -3,28 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export enum ReqStatus {
+export enum AuditStatus {
   DRAFT = '编辑中',
   PENDING = '待审核',
   APPROVED = '审核通过',
   REJECTED = '审核不通过',
-  EXECUTING = '执行中',
-  COMPLETED = '已转计划',
-  SPLIT = '已拆分',
-  MERGED = '已合并',
-  CANCELLED = '已取消',
+  CHANGE_DRAFT = '变更编辑中',
+  CHANGE_PENDING = '变更待审核',
+  TERMINATE_DRAFT = '取消编辑中',
+  TERMINATE_PENDING = '取消待审核',
+  TERMINATED = '已终止',
 }
 
-export enum PlanStatus {
-  DRAFT = '编辑中',
-  PENDING = '待审核',
-  APPROVED = '审核通过',
-  REJECTED = '审核不通过',
+export enum ReqProcessStatus {
+  NORMAL = '正常',
+  SPLIT = '已拆分',
+  MERGED = '已合并',
+  COMPLETED = '已转计划',
+  CANCELLED = '已取消',
+  TERMINATED = '已终止',
+}
+
+export enum PlanProcessStatus {
+  NORMAL = '正常',
   ASSIGNED = '已指派',
   SUBCONTRACTED = '已分包',
   SPLIT = '已拆分',
   MERGED = '已合并',
   CANCELLED = '已取消',
+  TERMINATED = '已终止',
 }
 
 export interface LineItem {
@@ -35,6 +42,7 @@ export interface LineItem {
   unit: string;
   qty: number;
   unitPrice: number;
+  sourcePlanId?: string; // Track source plan for subcontracts
 }
 
 export interface Requirement {
@@ -45,10 +53,13 @@ export interface Requirement {
   qty: number;
   assignedQty: number;
   unitPrice: number;
-  status: ReqStatus;
+  auditStatus: AuditStatus;
+  processStatus: ReqProcessStatus;
   createdAt: string;
   creator: string;
   items?: LineItem[];
+  changeReason?: string;
+  terminationReason?: string;
 }
 
 export interface Plan {
@@ -59,9 +70,14 @@ export interface Plan {
   spec: string;
   qty: number;
   assignedTo?: string;
-  status: PlanStatus;
+  procurementManager?: string;
+  procurementDept?: string;
+  auditStatus: AuditStatus;
+  processStatus: PlanProcessStatus;
   createdAt: string;
   items?: LineItem[];
+  changeReason?: string;
+  terminationReason?: string;
 }
 
 export interface Subcontract {
@@ -75,7 +91,7 @@ export interface Subcontract {
 
 export interface LineageRelation {
   id: string;
-  type: 'REQ_MERGE' | 'REQ_SPLIT' | 'PLAN_MERGE' | 'PLAN_SPLIT' | 'REQ_TO_PLAN';
+  type: 'REQ_MERGE' | 'REQ_SPLIT' | 'PLAN_MERGE' | 'PLAN_SPLIT' | 'REQ_TO_PLAN' | 'PLAN_TO_SUB';
   sourceIds: string[];
   targetIds: string[];
   qty: number;
@@ -88,6 +104,8 @@ export interface LotInfo {
   content: string;
   budget: number;
   items: LineItem[];
+  status?: '编辑中' | '已完成';
+  subcontractId?: string;
 }
 
 export interface ProjectApproval {
@@ -110,6 +128,18 @@ export interface Inventory {
   stockQty: number;
   safetyStock: number;
   unit: string;
+}
+
+export interface SearchParams {
+  content?: string;
+  id?: string;
+  dept?: string;
+  materialName?: string;
+  person?: string;
+  date?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export const MOCK_INVENTORY: Inventory[] = [

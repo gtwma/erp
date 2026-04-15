@@ -8,9 +8,10 @@ interface ProjectApprovalPoolProps {
   onCreate: () => void;
   onView: (project: ProjectApproval) => void;
   onApprove: (id: string) => void;
+  onReject: (id: string) => void;
 }
 
-export const ProjectApprovalPool: React.FC<ProjectApprovalPoolProps> = ({ projects, onCreate, onView, onApprove }) => {
+export const ProjectApprovalPool: React.FC<ProjectApprovalPoolProps> = ({ projects, onCreate, onView, onApprove, onReject }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('所有');
 
@@ -133,7 +134,8 @@ export const ProjectApprovalPool: React.FC<ProjectApprovalPoolProps> = ({ projec
                 <td className="px-4 py-2.5">
                   <span className={`${
                     project.status === '审核通过' ? 'text-green-500' : 
-                    project.status === '待审核' ? 'text-orange-500' : 'text-blue-500'
+                    project.status === '待审核' ? 'text-orange-500' : 
+                    project.status === '审核不通过' ? 'text-red-500' : 'text-blue-500'
                   } font-medium`}>
                     {project.status}
                   </span>
@@ -148,13 +150,22 @@ export const ProjectApprovalPool: React.FC<ProjectApprovalPoolProps> = ({ projec
                       {project.status === '编辑中' ? <Settings className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                     {project.status !== '审核通过' && (
-                      <button 
-                        onClick={() => onApprove(project.id)}
-                        className="text-green-500 hover:text-green-700" 
-                        title="审核通过"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => onApprove(project.id)}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => onReject(project.id)}
+                          className="text-red-500 hover:text-red-700" 
+                          title="审核不通过"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </td>

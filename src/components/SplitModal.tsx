@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { X, Check, AlertCircle, ArrowRight, FileText, History, Plus, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Requirement, Plan, LineageRelation } from '../types';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface SplitModalProps {
   isOpen: boolean;
@@ -20,6 +21,8 @@ interface SplitModalProps {
 export const SplitModal: React.FC<SplitModalProps> = ({ isOpen, onClose, onConfirm, target, lineage, sourceInfo }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [extractQtys, setExtractQtys] = useState<Record<string, number>>({});
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingResult, setPendingResult] = useState<Record<string, number[]> | null>(null);
 
   const items = React.useMemo(() => {
     if (!target) return [];
@@ -38,6 +41,8 @@ export const SplitModal: React.FC<SplitModalProps> = ({ isOpen, onClose, onConfi
       setExtractQtys(initialQtys);
     }
   }, [target, items]);
+
+  if (!isOpen || !target) return null;
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -82,13 +87,12 @@ export const SplitModal: React.FC<SplitModalProps> = ({ isOpen, onClose, onConfi
       const remain = Number((item.qty - extract).toFixed(2));
       result[item.id] = [remain, extract];
     });
-    onConfirm(result);
+    setPendingResult(result);
+    setShowConfirm(true);
   };
 
   const hasHistory = target ? lineage.some(l => l.targetIds.includes(target.id)) : false;
   const historyRecords = target ? lineage.filter(l => l.targetIds.includes(target.id)) : [];
-
-  if (!isOpen || !target) return null;
 
   const title = target.id.startsWith('REQ') ? '采购需求拆分 (勾选提取)' : '采购计划拆分 (勾选提取)';
   const anySelected = selectedIds.size > 0;
@@ -257,6 +261,19 @@ export const SplitModal: React.FC<SplitModalProps> = ({ isOpen, onClose, onConfi
             </div>
           </div>
         </motion.div>
+
+        <ConfirmDialog
+          isOpen={showConfirm}
+          title="确认执行拆分操作？"
+          message={`您正在从单据 ${target?.id} 中拆分出部分物料。拆分后将生成新的单据，且原始单据的对应物料数量将相应减少。`}
+          onConfirm={() => {
+            setShowConfirm(false);
+            if (pendingResult) onConfirm(pendingResult);
+          }}
+          onCancel={() => setShowConfirm(false)}
+          confirmText="确认拆分"
+          type="warning"
+        />
       </div>
     </AnimatePresence>
   );
