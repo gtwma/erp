@@ -11,6 +11,7 @@ interface ViewDocumentProps {
   document: Requirement | Plan | Subcontract;
   type: 'REQ' | 'PLAN' | 'SUB';
   lineage: LineageRelation[];
+  requirements: Requirement[];
   onClose: () => void;
   onUpdate?: (doc: Requirement | Plan | Subcontract) => void;
   onApprove?: (id: string) => void;
@@ -28,6 +29,7 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
   document, 
   type, 
   lineage, 
+  requirements,
   onClose, 
   onUpdate, 
   onApprove, 
@@ -689,9 +691,10 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                           />
                         </th>
                         <th className="w-12 px-4 py-3 text-center">序</th>
-                        <th className="px-4 py-3">采购需求编号</th>
-                        <th className="px-4 py-3">采购需求内容</th>
+                        <th className="px-4 py-3">需求编号</th>
+                        <th className="px-4 py-3">需求名称</th>
                         <th className="px-4 py-3">需求单位</th>
+                        <th className="px-4 py-3">创建日期</th>
                         <th className="px-4 py-3">操作</th>
                       </tr>
                     </thead>
@@ -700,39 +703,43 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                         lineage
                           .filter(l => l.targetIds.includes(document.id))
                           .flatMap(l => l.sourceIds)
-                          .map((id, idx) => (
-                            <tr key={id} className="text-[11px] hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-3 text-center">
-                                <input 
-                                  type="checkbox" 
-                                  className="rounded-[2px] border-gray-300 text-blue-500 focus:ring-blue-500" 
-                                  checked={selectedReqIds.includes(id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedReqIds([...selectedReqIds, id]);
-                                    } else {
-                                      setSelectedReqIds(selectedReqIds.filter(sid => sid !== id));
-                                    }
-                                  }}
-                                />
-                              </td>
-                              <td className="px-4 py-3 text-center text-gray-400">{idx + 1}</td>
-                              <td className="px-4 py-3 text-blue-600 font-mono">{id}</td>
-                              <td className="px-4 py-3 text-gray-800">采购需求内容示例</td>
-                              <td className="px-4 py-3 text-gray-800">系统管理部</td>
-                              <td className="px-4 py-3 text-blue-500 space-x-2">
-                                <span className="cursor-pointer hover:underline">查看详情</span>
-                                {isEditing && (
-                                  <span 
-                                    onClick={() => onRemoveRequirement && onRemoveRequirement(document.id, id)}
-                                    className="text-red-500 cursor-pointer hover:underline"
-                                  >
-                                    移除
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          ))
+                          .map((id, idx) => {
+                            const sourceReq = requirements.find(r => r.id === id);
+                            return (
+                              <tr key={id} className="text-[11px] hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-3 text-center">
+                                  <input 
+                                    type="checkbox" 
+                                    className="rounded-[2px] border-gray-300 text-blue-500 focus:ring-blue-500" 
+                                    checked={selectedReqIds.includes(id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedReqIds([...selectedReqIds, id]);
+                                      } else {
+                                        setSelectedReqIds(selectedReqIds.filter(sid => sid !== id));
+                                      }
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-center text-gray-400">{idx + 1}</td>
+                                <td className="px-4 py-3 text-blue-600 font-mono">{id}</td>
+                                <td className="px-4 py-3 text-gray-800">{sourceReq?.name || '采购需求内容示例'}</td>
+                                <td className="px-4 py-3 text-gray-800">系统管理部</td>
+                                <td className="px-4 py-3 text-gray-500">{sourceReq?.createdAt.split(' ')[0] || '-'}</td>
+                                <td className="px-4 py-3 text-blue-500 space-x-2">
+                                  <span className="cursor-pointer hover:underline">查看详情</span>
+                                  {isEditing && (
+                                    <span 
+                                      onClick={() => onRemoveRequirement && onRemoveRequirement(document.id, id)}
+                                      className="text-red-500 cursor-pointer hover:underline"
+                                    >
+                                      移除
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
                       ) : (
                         <tr>
                           <td colSpan={6} className="py-12">

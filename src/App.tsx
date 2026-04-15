@@ -1089,6 +1089,7 @@ export default function App() {
                     document={viewingDoc} 
                     type="REQ" 
                     lineage={lineage}
+                    requirements={requirements}
                     onClose={() => setCurrentView('REQ_APP')} 
                     onUpdate={handleUpdateDoc}
                     onSubmit={handleSubmitDoc}
@@ -1105,6 +1106,7 @@ export default function App() {
                     document={viewingDoc} 
                     type="PLAN" 
                     lineage={lineage}
+                    requirements={requirements}
                     onClose={() => setCurrentView('PLAN_POOL')} 
                     onUpdate={handleUpdateDoc}
                     onSubmit={handleSubmitDoc}
@@ -1304,6 +1306,7 @@ export default function App() {
                     document={viewingDoc} 
                     type="SUB" 
                     lineage={lineage}
+                    requirements={requirements}
                     onClose={() => setCurrentView('SUB_POOL')} 
                     onUpdate={handleUpdateDoc}
                     onApprove={(id) => handleApprove(id, 'SUB')}

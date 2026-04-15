@@ -81,13 +81,12 @@ export const PickApprovedModal: React.FC<PickApprovedModalProps> = ({ type, acti
                   <input type="checkbox" className="rounded-sm border-gray-300" disabled />
                 </th>
                 <th className="w-12 px-2 py-3 text-center">序</th>
-                <th className="px-4 py-3 font-medium">标段(包)编号</th>
-                <th className="px-4 py-3 font-medium">招标项目名称</th>
-                <th className="px-4 py-3 font-medium">标段(包)名称</th>
-                <th className="px-4 py-3 font-medium">标段(包)分类</th>
-                <th className="px-4 py-3 font-medium">招标方式</th>
-                <th className="px-4 py-3 font-medium text-right">合同预算价</th>
-                <th className="px-4 py-3 font-medium text-center">标段(包)状态</th>
+                <th className="px-4 py-3 font-medium">{type === 'REQ' ? '需求编号' : '采购计划编号'}</th>
+                <th className="px-4 py-3 font-medium">{type === 'REQ' ? '需求名称' : '采购计划名称'}</th>
+                <th className="px-4 py-3 font-medium">{type === 'REQ' ? '需求类型' : '计划类型'}</th>
+                <th className="px-4 py-3 font-medium">创建日期</th>
+                {type === 'REQ' && <th className="px-4 py-3 font-medium text-right">预算金额</th>}
+                <th className="px-4 py-3 font-medium text-center">状态</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -101,12 +100,17 @@ export const PickApprovedModal: React.FC<PickApprovedModalProps> = ({ type, acti
                     <input type="checkbox" className="rounded-sm border-gray-300" />
                   </td>
                   <td className="px-2 py-3 text-center text-gray-400">{index + 1}</td>
-                  <td className="px-4 py-3 text-gray-600 font-mono">{doc.id}</td>
-                  <td className="px-4 py-3 text-gray-800">【采购项目】{doc.name}</td>
-                  <td className="px-4 py-3 text-gray-800">{doc.name}<span className="text-red-500 ml-1">(网)</span></td>
-                  <td className="px-4 py-3 text-gray-500">材料设备</td>
-                  <td className="px-4 py-3 text-gray-500">公开招标</td>
-                  <td className="px-4 py-3 text-right text-gray-700 font-medium">{(doc.qty * (doc.unitPrice || 100)).toLocaleString()}元</td>
+                  <td className="px-4 py-3 text-blue-600 font-mono">{doc.id}</td>
+                  <td className="px-4 py-3 text-gray-800">{doc.name}</td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {type === 'REQ' ? '材料设备' : ((doc as Plan).planType || '年度采购计划')}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">{doc.createdAt.split(' ')[0]}</td>
+                  {type === 'REQ' && (
+                    <td className="px-4 py-3 text-right text-gray-700 font-medium">
+                      {(doc.qty * (doc.unitPrice || 100)).toLocaleString()}元
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-center">
                     <span className="text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">审核通过</span>
                   </td>

@@ -73,8 +73,9 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
                 </th>
                 <th className="px-4 py-2 w-12 text-center">序</th>
                 <th className="px-4 py-2">采购计划编号</th>
-                <th className="px-4 py-2">采购计划内容</th>
-                <th className="px-4 py-2 text-right">预计采购时间</th>
+                <th className="px-4 py-2">采购计划名称</th>
+                <th className="px-4 py-2">计划类型</th>
+                <th className="px-4 py-2 text-right">创建日期</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -95,7 +96,8 @@ export const PickPlanModal: React.FC<PickPlanModalProps> = ({ isOpen, onClose, o
                   <td className="px-4 py-2.5 text-center text-gray-400">{index + 1}</td>
                   <td className="px-4 py-2.5 font-mono">{plan.id}</td>
                   <td className="px-4 py-2.5">{plan.name}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-500">2025-11-10</td>
+                  <td className="px-4 py-2.5">{plan.planType || '年度采购计划'}</td>
+                  <td className="px-4 py-2.5 text-right text-gray-500">{plan.createdAt.split(' ')[0]}</td>
                 </tr>
               ))}
               {filteredPlans.length === 0 && (
