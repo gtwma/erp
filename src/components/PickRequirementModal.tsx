@@ -22,6 +22,7 @@ export const PickRequirementModal: React.FC<PickRequirementModalProps> = ({
     return requirements.filter(req => 
       req.auditStatus === AuditStatus.APPROVED && 
       req.processStatus === ReqProcessStatus.NORMAL && 
+      (req.qty - (req.assignedQty || 0)) > 0 &&
       (req.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
        req.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );

@@ -56,24 +56,32 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
 
   // Flatten all items from selected plans
   const allItems = useMemo(() => {
-    const items: (LineItem & { planId: string })[] = [];
+    const items: (LineItem & { planId: string; remainingQty: number })[] = [];
     selectedPlans.forEach(plan => {
       if (plan.items && plan.items.length > 0) {
         plan.items.forEach(item => {
-          items.push({ ...item, planId: plan.id });
+          const remaining = item.qty - (item.assignedQty || 0);
+          if (remaining > 0) {
+            items.push({ ...item, planId: plan.id, remainingQty: remaining });
+          }
         });
       } else {
         // Fallback for plans without explicit items
-        items.push({
-          id: `LI-${plan.id}`,
-          materialCode: plan.materialCode,
-          materialName: plan.name,
-          spec: plan.spec,
-          qty: plan.qty,
-          unit: '个',
-          unitPrice: 0,
-          planId: plan.id
-        });
+        const remaining = plan.qty - (plan.assignedQty || 0);
+        if (remaining > 0) {
+          items.push({
+            id: `LI-${plan.id}`,
+            materialCode: plan.materialCode,
+            materialName: plan.name,
+            spec: plan.spec,
+            qty: plan.qty,
+            assignedQty: plan.assignedQty,
+            unit: '个',
+            unitPrice: 0,
+            planId: plan.id,
+            remainingQty: remaining
+          });
+        }
       }
     });
     return items;
@@ -83,7 +91,7 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
   React.useEffect(() => {
     const initialQtys: Record<string, number> = {};
     allItems.forEach(item => {
-      initialQtys[item.id] = item.qty;
+      initialQtys[item.id] = item.remainingQty;
     });
     setItemQuantities(initialQtys);
   }, [allItems]);
@@ -201,8 +209,8 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
                   <th className="px-4 py-3">物料名称</th>
                   <th className="px-4 py-3">物料编码</th>
                   <th className="px-4 py-3">规格型号</th>
-                  <th className="px-4 py-3 text-right">计划数量</th>
-                  <th className="px-4 py-3 text-center w-32">分包数量</th>
+                  <th className="px-4 py-3 text-right">待分包数量</th>
+                  <th className="px-4 py-3 text-center w-32">本次分包数量</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-erp-border">
@@ -226,7 +234,7 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
                     </td>
                     <td className="px-4 py-3 text-gray-500 font-mono">{item.materialCode}</td>
                     <td className="px-4 py-3 text-gray-400">{item.spec}</td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-700">{item.qty.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-blue-600">{item.remainingQty.toFixed(2)}</td>
                     <td className="px-4 py-3 text-center" onClick={e => e.stopPropagation()}>
                       <input 
                         type="number"
@@ -235,9 +243,9 @@ export const SubcontractModal: React.FC<SubcontractModalProps> = ({
                         }`}
                         disabled={!selectedItemIds.includes(item.id)}
                         value={itemQuantities[item.id] || 0}
-                        onChange={(e) => handleQtyChange(item.id, e.target.value, item.qty)}
+                        onChange={(e) => handleQtyChange(item.id, e.target.value, item.remainingQty)}
                         min={0}
-                        max={item.qty}
+                        max={item.remainingQty}
                         step={0.01}
                       />
                     </td>

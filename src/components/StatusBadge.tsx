@@ -14,6 +14,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const getStatusColor = (s: string) => {
     switch (s) {
       case AuditStatus.APPROVED:
+      case AuditStatus.CHANGE_APPROVED:
+      case AuditStatus.TERMINATE_APPROVED:
         return 'bg-green-100 text-green-700 border-green-200';
       case ReqProcessStatus.COMPLETED:
       case PlanProcessStatus.ASSIGNED:

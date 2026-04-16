@@ -10,11 +10,13 @@ export enum AuditStatus {
   REJECTED = '审核不通过',
   CHANGE_DRAFT = '变更编辑中',
   CHANGE_PENDING = '变更待审核',
+  CHANGE_APPROVED = '变更审核通过',
+  CHANGE_REJECTED = '变更审核不通过',
   TERMINATE_DRAFT = '取消编辑中',
   TERMINATE_PENDING = '取消待审核',
-  TERMINATED = '已终止',
-  CHANGE_REJECTED = '变更审核不通过',
+  TERMINATE_APPROVED = '取消审核通过',
   TERMINATE_REJECTED = '取消审核不通过',
+  TERMINATED = '已终止',
 }
 
 export enum ReqProcessStatus {
@@ -45,6 +47,7 @@ export interface LineItem {
   spec: string;
   unit: string;
   qty: number;
+  assignedQty?: number;
   unitPrice: number;
   sourcePlanId?: string; // Track source plan for subcontracts
 }
@@ -85,6 +88,7 @@ export interface Plan {
   name: string;
   spec: string;
   qty: number;
+  assignedQty?: number;
   assignedTo?: string;
   procurementManager?: string;
   procurementDept?: string;

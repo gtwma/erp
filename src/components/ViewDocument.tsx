@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { X, FileText, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Share2, History as HistoryIcon, Edit3, Save, CheckCircle2, User, Clock, MessageSquare, Upload, HelpCircle } from 'lucide-react';
+import { X, FileText, ChevronDown, ChevronLeft, ChevronRight, Printer, Download, Share2, History as HistoryIcon, Edit3, Save, CheckCircle2, User, Clock, MessageSquare, Upload, HelpCircle, AlertTriangle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Requirement, Plan, Subcontract, ProjectApproval, AuditStatus, ReqProcessStatus, PlanProcessStatus, LineageRelation, HistoryRecord } from '../types';
 
 interface ViewDocumentProps {
@@ -51,6 +52,7 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [processOpinion, setProcessOpinion] = useState('');
   const [processAction, setProcessAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+  const [showOpinionModal, setShowOpinionModal] = useState(false);
 
   const history: HistoryRecord[] = (document as any).history || [];
 
@@ -111,6 +113,36 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
               </div>
             ) : null}
 
+            {(auditStatus === AuditStatus.PENDING || 
+              auditStatus === AuditStatus.CHANGE_PENDING || 
+              auditStatus === AuditStatus.TERMINATE_PENDING ||
+              auditStatus === '待审核') && (
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={() => {
+                    setProcessAction('APPROVE');
+                    setProcessOpinion('审核通过');
+                    setShowOpinionModal(true);
+                  }}
+                  className="flex items-center space-x-1.5 px-4 py-1.5 bg-green-500 text-white text-xs font-medium rounded-[2px] hover:bg-green-600 transition-all shadow-sm"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>审核通过</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setProcessAction('REJECT');
+                    setProcessOpinion('审核不通过');
+                    setShowOpinionModal(true);
+                  }}
+                  className="flex items-center space-x-1.5 px-4 py-1.5 bg-red-500 text-white text-xs font-medium rounded-[2px] hover:bg-red-600 transition-all shadow-sm"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>审核不通过</span>
+                </button>
+              </div>
+            )}
+
             <button 
               onClick={onClose}
               className="px-4 py-1.5 border border-gray-300 rounded-[2px] text-xs font-medium text-gray-600 hover:bg-gray-50 transition-all bg-white"
@@ -141,6 +173,60 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all">
             <X className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+      
+      {/* Flow Progress */}
+      <div className="px-6 py-4 bg-white border-b border-erp-border shrink-0">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          {isSub ? (
+            [
+              { label: '分包组建', status: 'completed' },
+              { label: '组建完成', status: 'completed' }
+            ].map((step, idx, arr) => (
+              <React.Fragment key={idx}>
+                <div className="flex flex-col items-center relative z-10">
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 bg-blue-500 border-blue-500 text-white">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[10px] mt-1.5 font-medium text-blue-600">{step.label}</span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <div className="flex-1 h-0.5 mx-4 bg-gray-100 relative -mt-4">
+                    <div className="absolute inset-0 bg-blue-500 w-full" />
+                  </div>
+                )}
+              </React.Fragment>
+            ))
+          ) : (
+            [
+              { label: '提交申请', status: 'completed' },
+              { label: '流程审核', status: (auditStatus === '待审核' || auditStatus === AuditStatus.PENDING || auditStatus === AuditStatus.CHANGE_PENDING || auditStatus === AuditStatus.TERMINATE_PENDING) ? 'current' : (auditStatus === '审核通过' || auditStatus === AuditStatus.APPROVED || auditStatus === AuditStatus.CHANGE_APPROVED || auditStatus === AuditStatus.TERMINATE_APPROVED ? 'completed' : 'pending') },
+              { label: '审核完成', status: (auditStatus === '审核通过' || auditStatus === AuditStatus.APPROVED || auditStatus === AuditStatus.CHANGE_APPROVED || auditStatus === AuditStatus.TERMINATE_APPROVED) ? 'completed' : 'pending' }
+            ].map((step, idx, arr) => (
+              <React.Fragment key={idx}>
+                <div className="flex flex-col items-center relative z-10">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${
+                    step.status === 'completed' ? 'bg-blue-500 border-blue-500 text-white' :
+                    step.status === 'current' ? 'bg-white border-blue-500 text-blue-500' :
+                    'bg-white border-gray-200 text-gray-400'
+                  }`}>
+                    {step.status === 'completed' ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx + 1}
+                  </div>
+                  <span className={`text-[10px] mt-1.5 font-medium ${
+                    step.status === 'completed' || step.status === 'current' ? 'text-blue-600' : 'text-gray-400'
+                  }`}>{step.label}</span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <div className="flex-1 h-0.5 mx-4 bg-gray-100 relative -mt-4">
+                    <div className={`absolute inset-0 bg-blue-500 transition-all duration-500 ${
+                      step.status === 'completed' ? 'w-full' : 'w-0'
+                    }`} />
+                  </div>
+                )}
+              </React.Fragment>
+            ))
+          )}
         </div>
       </div>
 
@@ -549,7 +635,9 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                       <th className="px-4 py-3">物料名称</th>
                       <th className="px-4 py-3">物料编码</th>
                       <th className="px-4 py-3">规格型号</th>
-                      <th className="px-4 py-3 text-right">数量</th>
+                      <th className="px-4 py-3 text-right">原始数量</th>
+                      <th className="px-4 py-3 text-right">已分配数量</th>
+                      <th className="px-4 py-3 text-right">剩余数量</th>
                       <th className="px-4 py-3">单位</th>
                       <th className="px-4 py-3 text-right">预估单价</th>
                       <th className="px-4 py-3 text-right">预估总价</th>
@@ -564,6 +652,8 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                           <td className="px-4 py-3 text-gray-600 font-mono">{item.materialCode}</td>
                           <td className="px-4 py-3 text-gray-500">{item.spec}</td>
                           <td className="px-4 py-3 text-right font-bold text-gray-700">{item.qty.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-blue-600">{(item.assignedQty || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-orange-600">{(item.qty - (item.assignedQty || 0)).toFixed(2)}</td>
                           <td className="px-4 py-3 text-gray-600">台</td>
                           <td className="px-4 py-3 text-right text-gray-800">{(item.unitPrice || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right text-gray-800">{(item.qty * (item.unitPrice || 0)).toFixed(2)}</td>
@@ -576,6 +666,8 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                         <td className="px-4 py-3 text-gray-600 font-mono">{'materialCode' in document ? document.materialCode : '--'}</td>
                         <td className="px-4 py-3 text-gray-500">{'spec' in document ? document.spec : '--'}</td>
                         <td className="px-4 py-3 text-right font-bold text-gray-700">{qty.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right text-blue-600">{(document.assignedQty || 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right text-orange-600">{(qty - (document.assignedQty || 0)).toFixed(2)}</td>
                         <td className="px-4 py-3 text-gray-600">台</td>
                         <td className="px-4 py-3 text-right text-gray-800">0.00</td>
                         <td className="px-4 py-3 text-right text-gray-800">0.00</td>
@@ -630,11 +722,11 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
             </div>
           </div>
 
-          {/* Section 04: Related Electronic Files */}
+          {/* Section 05: Related Electronic Files */}
           <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
             <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
               <div className="flex items-center space-x-2">
-                <span className="text-blue-500 font-bold text-xs">04</span>
+                <span className="text-blue-500 font-bold text-xs">05</span>
                 <span className="text-blue-500 font-bold text-xs">相关电子文件</span>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-300" />
@@ -672,19 +764,24 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
             </div>
           </div>
 
-          {/* Section 05: Processing History */}
+          {/* Section 06: Process History */}
           <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
             <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
               <div className="flex items-center space-x-2">
-                <span className="text-blue-500 font-bold text-xs">05</span>
+                <span className="text-blue-500 font-bold text-xs">06</span>
                 <span className="text-blue-500 font-bold text-xs">处理历史</span>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-300" />
             </div>
-            <div className="p-4">
+            <div className="p-0">
+              <div className="px-4 py-3 bg-white border-b border-gray-100">
+                <button className="px-4 py-1.5 border border-gray-300 rounded-[2px] text-xs text-gray-600 hover:bg-gray-50 transition-colors shadow-sm">
+                  查看主流程
+                </button>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead className="bg-[#F5F7FA]">
+                  <thead className="bg-[#F9FAFB]">
                     <tr className="text-[11px] text-gray-600 border-b border-erp-border font-medium">
                       <th className="px-4 py-3">步骤</th>
                       <th className="px-4 py-3">办理人员</th>
@@ -694,89 +791,53 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-erp-border">
-                    <tr className="text-[11px] hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-800">提交申请</td>
-                      <td className="px-4 py-3 text-gray-800">系统管理员</td>
-                      <td className="px-4 py-3 text-gray-500">{document.createdAt}</td>
-                      <td className="px-4 py-3 text-gray-500">{document.createdAt}</td>
-                      <td className="px-4 py-3 text-gray-800">发起采购申请</td>
-                    </tr>
+                    {history && history.length > 0 ? (
+                      history.map((record, idx) => {
+                        let stepName = '流程处理';
+                        if (record.type === 'SUBMIT') {
+                          if (document.id.startsWith('REQ')) stepName = '采购申请';
+                          else if (document.id.startsWith('PLN')) stepName = '计划申请';
+                          else if (document.id.startsWith('SUB')) stepName = '分包备案';
+                          else stepName = '招标采购立项提交备案';
+                        } else if (record.type === 'APPROVE') {
+                          if (document.id.startsWith('REQ')) stepName = '负责人审核';
+                          else if (document.id.startsWith('PLN')) stepName = '负责人审核';
+                          else if (document.id.startsWith('SUB')) stepName = '分包审核';
+                          else stepName = '招标单位领导内审';
+                        } else if (record.type === 'REJECT') {
+                          stepName = '审核不通过';
+                        } else if (record.type === 'CHANGE') {
+                          stepName = '变更申请';
+                        } else if (record.type === 'TERMINATE') {
+                          stepName = '终止申请';
+                        }
+
+                        return (
+                          <tr key={record.id} className={`text-[11px] hover:bg-blue-50/30 transition-colors ${idx % 2 === 1 ? 'bg-[#F5F8FB]' : 'bg-white'}`}>
+                            <td className="px-4 py-3 text-gray-800">{stepName}</td>
+                            <td className="px-4 py-3 text-gray-800">{record.operator}</td>
+                            <td className="px-4 py-3 text-gray-500">
+                              {idx === 0 ? document.createdAt : history[idx-1].timestamp}
+                            </td>
+                            <td className="px-4 py-3 text-gray-500">{record.timestamp}</td>
+                            <td className="px-4 py-3 text-gray-800">{record.opinion || record.reason || (record.type === 'SUBMIT' ? '请领导审核' : '同意')}</td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr className="text-[11px] bg-white">
+                        <td className="px-4 py-3 text-gray-800">招标采购立项提交备案</td>
+                        <td className="px-4 py-3 text-gray-800">系统管理员</td>
+                        <td className="px-4 py-3 text-gray-500">{document.createdAt}</td>
+                        <td className="px-4 py-3 text-gray-500">{document.createdAt}</td>
+                        <td className="px-4 py-3 text-gray-800">请领导审核</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-
-          {/* Section 06: Process Action (Conditional) */}
-          {(auditStatus === AuditStatus.PENDING || 
-            auditStatus === AuditStatus.CHANGE_PENDING || 
-            auditStatus === AuditStatus.TERMINATE_PENDING ||
-            auditStatus === '待审核') && (
-            <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
-                <div className="flex items-center space-x-2">
-                  <span className="text-blue-500 font-bold text-xs">06</span>
-                  <span className="text-blue-500 font-bold text-xs">处理操作</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-300" />
-              </div>
-              <div className="p-6 space-y-4">
-                <div className="flex items-center space-x-6">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="processAction" 
-                      className="text-green-600 focus:ring-green-500"
-                      checked={processAction === 'APPROVE'}
-                      onChange={() => setProcessAction('APPROVE')}
-                    />
-                    <span className="text-xs font-medium text-gray-700">审核通过</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="processAction" 
-                      className="text-red-600 focus:ring-red-500"
-                      checked={processAction === 'REJECT'}
-                      onChange={() => setProcessAction('REJECT')}
-                    />
-                    <span className="text-xs font-medium text-gray-700">审核不通过</span>
-                  </label>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-500">处理意见: <span className="text-red-500">*</span></label>
-                  <textarea 
-                    className="w-full border border-gray-300 rounded-[2px] p-3 text-xs outline-none focus:border-blue-500 h-24 bg-white"
-                    placeholder="请输入处理意见"
-                    value={processOpinion}
-                    onChange={e => setProcessOpinion(e.target.value)}
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <button 
-                    disabled={!processAction || !processOpinion.trim()}
-                    onClick={() => {
-                      if (processAction === 'APPROVE' && onApprove) {
-                        onApprove(document.id, processOpinion);
-                      } else if (processAction === 'REJECT' && onReject) {
-                        onReject(document.id, processOpinion);
-                      }
-                      onClose();
-                    }}
-                    className={`px-8 py-2 text-xs font-bold rounded-[2px] transition-all shadow-sm ${
-                      !processAction || !processOpinion.trim()
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-erp-secondary text-white hover:bg-blue-600'
-                    }`}
-                  >
-                    提交处理
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Section 07: Original Plan (Conditional) */}
           {isPlan && (
@@ -797,12 +858,12 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
             </div>
           )}
 
-          {/* Section 07.1: Project Lots (Conditional) */}
+          {/* Section 08: Project Lots (Conditional) */}
           {isProject && (
             <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
               <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
                 <div className="flex items-center space-x-2">
-                  <span className="text-blue-500 font-bold text-xs">07</span>
+                  <span className="text-blue-500 font-bold text-xs">08</span>
                   <span className="text-blue-500 font-bold text-xs">标段(包)信息</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-300" />
@@ -832,11 +893,11 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
             </div>
           )}
 
-          {/* Section 08: Lineage Info */}
+          {/* Section 09: Lineage Info */}
           <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
             <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
               <div className="flex items-center space-x-2">
-                <span className="text-blue-500 font-bold text-xs">08</span>
+                <span className="text-blue-500 font-bold text-xs">09</span>
                 <span className="text-blue-500 font-bold text-xs">溯源追溯信息</span>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-300" />
@@ -875,54 +936,74 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
             </div>
           </div>
 
-          {/* Section 09: Change/Cancel History */}
-          {history.length > 0 && (
-            <div className="bg-white border border-erp-border rounded-[2px] shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-erp-border flex items-center justify-between bg-white">
-                <div className="flex items-center space-x-2">
-                  <span className="text-blue-500 font-bold text-xs">09</span>
-                  <span className="text-blue-500 font-bold text-xs">变更/取消历史记录</span>
-                </div>
-                <ChevronDown className="w-4 h-4 text-gray-300" />
-              </div>
-              <div className="p-6">
-                <div className="relative border-l-2 border-gray-100 ml-3 space-y-8">
-                  {history.map((record) => (
-                    <div key={record.id} className="relative pl-8">
-                      <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-blue-500 flex items-center justify-center">
-                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                      </div>
-                      <div className="bg-gray-50 rounded p-4 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              record.type === 'CHANGE' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                              {record.type === 'CHANGE' ? '变更记录' : '取消记录'}
-                            </span>
-                            <span className="text-xs font-bold text-gray-800">{record.operator}</span>
-                          </div>
-                          <div className="flex items-center text-[10px] text-gray-400 space-x-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{record.timestamp}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-start space-x-2 text-xs text-gray-600">
-                          <MessageSquare className="w-3.5 h-3.5 mt-0.5 text-gray-400" />
-                          <p className="leading-relaxed">
-                            <span className="font-medium text-gray-500 mr-1">{record.type === 'CHANGE' ? '变更理由:' : '取消理由:'}</span>
-                            {record.reason}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Section 09: Change/Cancel History (Removed, merged into 05) */}
         </div>
       </div>
+
+      {/* Opinion Modal */}
+      <AnimatePresence>
+        {showOpinionModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden border border-gray-200"
+            >
+              <div className="p-6">
+                <div className="flex items-start space-x-4">
+                  <div className={`p-2 rounded-full border ${processAction === 'APPROVE' ? 'text-green-500 bg-green-50 border-green-100' : 'text-red-500 bg-red-50 border-red-100'}`}>
+                    {processAction === 'APPROVE' ? <CheckCircle2 className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">
+                      {processAction === 'APPROVE' ? '审核通过确认' : '审核不通过确认'}
+                    </h3>
+                    <p className="text-sm text-gray-500 mb-4">
+                      请确认您的审核意见并提交。
+                    </p>
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-500 font-medium">审核意见: <span className="text-red-500">*</span></label>
+                      <textarea 
+                        className="w-full border border-gray-300 rounded-[2px] p-3 text-xs outline-none focus:border-blue-500 h-24 bg-white"
+                        placeholder="请输入审核意见"
+                        value={processOpinion}
+                        onChange={e => setProcessOpinion(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowOpinionModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  disabled={!processOpinion.trim()}
+                  onClick={() => {
+                    if (processAction === 'APPROVE' && onApprove) {
+                      onApprove(document.id, processOpinion);
+                    } else if (processAction === 'REJECT' && onReject) {
+                      onReject(document.id, processOpinion);
+                    }
+                    setShowOpinionModal(false);
+                    onClose();
+                  }}
+                  className={`px-6 py-2 text-sm font-bold text-white rounded shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                    processAction === 'APPROVE' ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'
+                  }`}
+                >
+                  确认提交
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

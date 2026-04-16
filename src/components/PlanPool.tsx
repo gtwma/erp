@@ -68,19 +68,21 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
   };
 
   const activePlans = useMemo(() => {
-    let filtered = plans.filter(p => p.processStatus !== PlanProcessStatus.SUBCONTRACTED);
+    let filtered = [...plans];
 
     if (mode === 'CHANGE') {
       filtered = filtered.filter(p => 
         p.auditStatus === AuditStatus.CHANGE_DRAFT || 
         p.auditStatus === AuditStatus.CHANGE_PENDING ||
-        p.auditStatus === AuditStatus.CHANGE_REJECTED
+        p.auditStatus === AuditStatus.CHANGE_REJECTED ||
+        p.auditStatus === AuditStatus.CHANGE_APPROVED
       );
     } else if (mode === 'TERMINATE') {
       filtered = filtered.filter(p => 
         p.auditStatus === AuditStatus.TERMINATE_DRAFT || 
         p.auditStatus === AuditStatus.TERMINATE_PENDING || 
         p.auditStatus === AuditStatus.TERMINATE_REJECTED ||
+        p.auditStatus === AuditStatus.TERMINATE_APPROVED ||
         p.auditStatus === AuditStatus.TERMINATED
       );
     } else {
@@ -88,9 +90,11 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
         p.auditStatus !== AuditStatus.CHANGE_DRAFT && 
         p.auditStatus !== AuditStatus.CHANGE_PENDING && 
         p.auditStatus !== AuditStatus.CHANGE_REJECTED &&
+        p.auditStatus !== AuditStatus.CHANGE_APPROVED &&
         p.auditStatus !== AuditStatus.TERMINATE_DRAFT && 
         p.auditStatus !== AuditStatus.TERMINATE_PENDING && 
         p.auditStatus !== AuditStatus.TERMINATE_REJECTED &&
+        p.auditStatus !== AuditStatus.TERMINATE_APPROVED &&
         p.auditStatus !== AuditStatus.TERMINATED
       );
     }
@@ -290,6 +294,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
               <th className="px-4 py-2">需求单位</th>
               <th className="px-4 py-2">采购负责人</th>
               <th className="px-4 py-2">采购负责人部门</th>
+              <th className="px-4 py-2 text-right">数量(原始/剩余)</th>
               {mode === 'CHANGE' && <th className="px-4 py-2">变更理由</th>}
               {mode === 'TERMINATE' && <th className="px-4 py-2">取消理由</th>}
               <th className="px-4 py-2">审核状态</th>
@@ -304,7 +309,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                 onClick={() => onView(plan)}
                 className={`hover:bg-blue-50/30 transition-colors text-xs cursor-pointer ${
                   selectedIds.includes(plan.id) ? 'bg-blue-50/50' : ''
-                }`}
+                } ${plan.processStatus === PlanProcessStatus.SUBCONTRACTED ? 'opacity-60 grayscale-[0.3]' : ''}`}
               >
                 <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <input
@@ -312,7 +317,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                     className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary disabled:opacity-30 disabled:cursor-not-allowed"
                     checked={selectedIds.includes(plan.id)}
                     onChange={() => toggleSelect(plan.id)}
-                    disabled={plan.processStatus === PlanProcessStatus.MERGED || plan.processStatus === PlanProcessStatus.SPLIT || plan.processStatus === PlanProcessStatus.ARCHIVED}
+                    disabled={plan.processStatus === PlanProcessStatus.MERGED || plan.processStatus === PlanProcessStatus.SPLIT || plan.processStatus === PlanProcessStatus.ARCHIVED || plan.processStatus === PlanProcessStatus.SUBCONTRACTED}
                   />
                 </td>
                 <td className="px-4 py-2.5 text-center text-erp-text-sub">{index + 1}</td>
@@ -367,6 +372,9 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                 <td className="px-4 py-2.5 text-erp-text-sub">系统管理部</td>
                 <td className="px-4 py-2.5 text-erp-text-sub">{plan.procurementManager || '-'}</td>
                 <td className="px-4 py-2.5 text-erp-text-sub">{plan.procurementDept || '-'}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-gray-600">
+                  {plan.qty.toFixed(2)} / <span className="text-blue-600">{(plan.qty - (plan.assignedQty || 0)).toFixed(2)}</span>
+                </td>
                 {mode === 'CHANGE' && (
                   <td className="px-4 py-2.5 text-erp-text-sub max-w-[200px] truncate" title={plan.changeReason}>
                     {plan.changeReason || '-'}
@@ -381,7 +389,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                   <span className={`text-[11px] ${
                     plan.auditStatus === AuditStatus.DRAFT ? 'text-blue-500' :
                     plan.auditStatus === AuditStatus.PENDING ? 'text-orange-500' :
-                    plan.auditStatus === AuditStatus.APPROVED ? 'text-green-500' : 
+                    plan.auditStatus === AuditStatus.APPROVED || plan.auditStatus === AuditStatus.CHANGE_APPROVED || plan.auditStatus === AuditStatus.TERMINATE_APPROVED ? 'text-green-500' : 
                     plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_REJECTED || plan.auditStatus === AuditStatus.TERMINATE_REJECTED ? 'text-red-500' : 
                     plan.auditStatus === AuditStatus.CHANGE_DRAFT || plan.auditStatus === AuditStatus.TERMINATE_DRAFT ? 'text-blue-400' :
                     plan.auditStatus === AuditStatus.CHANGE_PENDING || plan.auditStatus === AuditStatus.TERMINATE_PENDING ? 'text-orange-400' :
@@ -406,28 +414,10 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                     <button 
                       onClick={() => onView(plan)}
                       className="text-erp-secondary hover:text-blue-700" 
-                      title={plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT ? "编辑" : "查看"}
+                      title={plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT || plan.auditStatus === AuditStatus.CHANGE_REJECTED || plan.auditStatus === AuditStatus.TERMINATE_DRAFT || plan.auditStatus === AuditStatus.TERMINATE_REJECTED ? "编辑" : "查看"}
                     >
-                      {plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
+                      {plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT || plan.auditStatus === AuditStatus.CHANGE_REJECTED || plan.auditStatus === AuditStatus.TERMINATE_DRAFT || plan.auditStatus === AuditStatus.TERMINATE_REJECTED ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
                     </button>
-                    {(plan.auditStatus === AuditStatus.PENDING || plan.auditStatus === AuditStatus.CHANGE_PENDING || plan.auditStatus === AuditStatus.TERMINATE_PENDING) && (
-                      <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onApprove(plan.id); }}
-                          className="text-green-500 hover:text-green-700" 
-                          title="审核通过"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onReject(plan.id); }}
-                          className="text-red-500 hover:text-red-700" 
-                          title="审核不通过"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
                   </div>
                 </td>
               </tr>

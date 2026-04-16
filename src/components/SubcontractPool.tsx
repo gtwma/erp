@@ -237,24 +237,6 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                     >
                       <Search className="w-3.5 h-3.5" />
                     </button>
-                    {sub.status === '待审核' && (
-                      <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onApprove?.(sub.id); }}
-                          className="text-green-500 hover:text-green-700" 
-                          title="审核通过"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onReject?.(sub.id); }}
-                          className="text-red-500 hover:text-red-700" 
-                          title="审核不通过"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();

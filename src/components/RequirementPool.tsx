@@ -72,19 +72,21 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
   });
 
   const activeRequirements = useMemo(() => {
-    let filtered = requirements.filter(r => r.processStatus !== ReqProcessStatus.COMPLETED);
+    let filtered = [...requirements];
 
     if (mode === 'CHANGE') {
       filtered = filtered.filter(r => 
         r.auditStatus === AuditStatus.CHANGE_DRAFT || 
         r.auditStatus === AuditStatus.CHANGE_PENDING ||
-        r.auditStatus === AuditStatus.CHANGE_REJECTED
+        r.auditStatus === AuditStatus.CHANGE_REJECTED ||
+        r.auditStatus === AuditStatus.CHANGE_APPROVED
       );
     } else if (mode === 'TERMINATE') {
       filtered = filtered.filter(r => 
         r.auditStatus === AuditStatus.TERMINATE_DRAFT || 
         r.auditStatus === AuditStatus.TERMINATE_PENDING || 
         r.auditStatus === AuditStatus.TERMINATE_REJECTED ||
+        r.auditStatus === AuditStatus.TERMINATE_APPROVED ||
         r.auditStatus === AuditStatus.TERMINATED
       );
     } else {
@@ -92,9 +94,11 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
         r.auditStatus !== AuditStatus.CHANGE_DRAFT && 
         r.auditStatus !== AuditStatus.CHANGE_PENDING && 
         r.auditStatus !== AuditStatus.CHANGE_REJECTED &&
+        r.auditStatus !== AuditStatus.CHANGE_APPROVED &&
         r.auditStatus !== AuditStatus.TERMINATE_DRAFT && 
         r.auditStatus !== AuditStatus.TERMINATE_PENDING && 
         r.auditStatus !== AuditStatus.TERMINATE_REJECTED &&
+        r.auditStatus !== AuditStatus.TERMINATE_APPROVED &&
         r.auditStatus !== AuditStatus.TERMINATED
       );
     }
@@ -276,6 +280,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
               <th className="px-4 py-2">采购需求编号</th>
               <th className="px-4 py-2">采购需求内容</th>
               <th className="px-4 py-2">需求单位</th>
+              <th className="px-4 py-2 text-right">数量(原始/剩余)</th>
               {mode === 'CHANGE' && <th className="px-4 py-2">变更理由</th>}
               {mode === 'TERMINATE' && <th className="px-4 py-2">取消理由</th>}
               <th className="px-4 py-2">审核状态</th>
@@ -290,7 +295,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 onClick={() => onView(req)}
                 className={`hover:bg-blue-50/30 transition-colors text-xs cursor-pointer ${
                   selectedIds.includes(req.id) ? 'bg-blue-50/50' : ''
-                }`}
+                } ${req.processStatus === ReqProcessStatus.COMPLETED ? 'opacity-60 grayscale-[0.3]' : ''}`}
               >
                 <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <input
@@ -298,7 +303,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                     className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary disabled:opacity-30 disabled:cursor-not-allowed"
                     checked={selectedIds.includes(req.id)}
                     onChange={() => toggleSelect(req.id)}
-                    disabled={req.processStatus === ReqProcessStatus.SPLIT || req.processStatus === ReqProcessStatus.MERGED || req.processStatus === ReqProcessStatus.ARCHIVED}
+                    disabled={req.processStatus === ReqProcessStatus.SPLIT || req.processStatus === ReqProcessStatus.MERGED || req.processStatus === ReqProcessStatus.ARCHIVED || req.processStatus === ReqProcessStatus.COMPLETED}
                   />
                 </td>
                 <td className="px-4 py-2.5 text-center text-erp-text-sub">{index + 1}</td>
@@ -321,6 +326,9 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                   <InventoryCheck materialCode={req.materialCode} requiredQty={req.qty} />
                 </td>
                 <td className="px-4 py-2.5 text-erp-text-sub">{req.creator || '系统管理部'}</td>
+                <td className="px-4 py-2.5 text-right font-mono text-gray-600">
+                  {req.qty.toFixed(2)} / <span className="text-blue-600">{(req.qty - (req.assignedQty || 0)).toFixed(2)}</span>
+                </td>
                 {mode === 'CHANGE' && (
                   <td className="px-4 py-2.5 text-erp-text-sub max-w-[200px] truncate" title={req.changeReason}>
                     {req.changeReason || '-'}
@@ -335,7 +343,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                   <span className={`text-[11px] ${
                     req.auditStatus === AuditStatus.DRAFT ? 'text-blue-500' :
                     req.auditStatus === AuditStatus.PENDING ? 'text-orange-500' :
-                    req.auditStatus === AuditStatus.APPROVED ? 'text-green-500' : 
+                    req.auditStatus === AuditStatus.APPROVED || req.auditStatus === AuditStatus.CHANGE_APPROVED || req.auditStatus === AuditStatus.TERMINATE_APPROVED ? 'text-green-500' : 
                     req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_REJECTED || req.auditStatus === AuditStatus.TERMINATE_REJECTED ? 'text-red-500' : 
                     req.auditStatus === AuditStatus.CHANGE_DRAFT || req.auditStatus === AuditStatus.TERMINATE_DRAFT ? 'text-blue-400' :
                     req.auditStatus === AuditStatus.CHANGE_PENDING || req.auditStatus === AuditStatus.TERMINATE_PENDING ? 'text-orange-400' :
@@ -359,28 +367,10 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                     <button 
                       onClick={() => onView(req)}
                       className="text-erp-secondary hover:text-blue-700" 
-                      title={req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT ? "编辑" : "查看"}
+                      title={req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT || req.auditStatus === AuditStatus.CHANGE_REJECTED || req.auditStatus === AuditStatus.TERMINATE_DRAFT || req.auditStatus === AuditStatus.TERMINATE_REJECTED ? "编辑" : "查看"}
                     >
-                      {req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
+                      {req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT || req.auditStatus === AuditStatus.CHANGE_REJECTED || req.auditStatus === AuditStatus.TERMINATE_DRAFT || req.auditStatus === AuditStatus.TERMINATE_REJECTED ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
                     </button>
-                    {(req.auditStatus === AuditStatus.PENDING || req.auditStatus === AuditStatus.CHANGE_PENDING || req.auditStatus === AuditStatus.TERMINATE_PENDING) && (
-                      <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onApprove(req.id); }}
-                          className="text-green-500 hover:text-green-700" 
-                          title="审核通过"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onReject(req.id); }}
-                          className="text-red-500 hover:text-red-700" 
-                          title="审核不通过"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
                   </div>
                 </td>
               </tr>

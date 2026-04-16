@@ -149,24 +149,6 @@ export const ProjectApprovalPool: React.FC<ProjectApprovalPoolProps> = ({ projec
                     >
                       {project.status === '编辑中' ? <Settings className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
-                    {project.status === '待审核' && (
-                      <>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onApprove(project.id); }}
-                          className="text-green-500 hover:text-green-700" 
-                          title="审核通过"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); onReject(project.id); }}
-                          className="text-red-500 hover:text-red-700" 
-                          title="审核不通过"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
                   </div>
                 </td>
               </tr>

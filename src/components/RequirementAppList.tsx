@@ -105,10 +105,10 @@ export const RequirementAppList: React.FC<RequirementAppListProps> = ({ requirem
                   <span className={`px-2 py-0.5 rounded-full text-[10px] ${
                     req.auditStatus === AuditStatus.DRAFT ? 'bg-gray-100 text-gray-600' :
                     req.auditStatus === AuditStatus.PENDING ? 'bg-orange-100 text-orange-600' :
-                    req.auditStatus === AuditStatus.APPROVED ? 'bg-green-100 text-green-600' : 
-                    req.auditStatus === AuditStatus.REJECTED ? 'bg-red-100 text-red-600' : 
-                    req.auditStatus === AuditStatus.CHANGE_DRAFT ? 'bg-blue-100 text-blue-600' :
-                    req.auditStatus === AuditStatus.CHANGE_PENDING ? 'bg-orange-50 text-orange-500' :
+                    req.auditStatus === AuditStatus.APPROVED || req.auditStatus === AuditStatus.CHANGE_APPROVED || req.auditStatus === AuditStatus.TERMINATE_APPROVED ? 'bg-green-100 text-green-600' : 
+                    req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_REJECTED || req.auditStatus === AuditStatus.TERMINATE_REJECTED ? 'bg-red-100 text-red-600' : 
+                    req.auditStatus === AuditStatus.CHANGE_DRAFT || req.auditStatus === AuditStatus.TERMINATE_DRAFT ? 'bg-blue-100 text-blue-600' :
+                    req.auditStatus === AuditStatus.CHANGE_PENDING || req.auditStatus === AuditStatus.TERMINATE_PENDING ? 'bg-orange-50 text-orange-500' :
                     req.auditStatus === AuditStatus.TERMINATED ? 'bg-gray-200 text-gray-500' : 'bg-blue-100 text-blue-600'
                   }`}>
                     {req.auditStatus}

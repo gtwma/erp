@@ -91,6 +91,7 @@ export default function App() {
 
   // View Document State
   const [viewingDoc, setViewingDoc] = useState<Requirement | Plan | Subcontract | null>(null);
+  const [previousView, setPreviousView] = useState<ViewType | null>(null);
   const [actionDoc, setActionDoc] = useState<Requirement | Plan | null>(null);
 
   // Stats
@@ -111,7 +112,7 @@ export default function App() {
     if (selectedReqs.length === 0) return;
 
     const now = Date.now();
-    const totalQty = selectedReqs.reduce((sum, r) => sum + (r.qty - r.assignedQty), 0);
+    const totalQty = selectedReqs.reduce((sum, r) => sum + (r.qty - (r.assignedQty || 0)), 0);
     
     // Aggregate all items from all selected requirements
     const newItems: any[] = [];
@@ -120,7 +121,8 @@ export default function App() {
         req.items.forEach(item => {
           newItems.push({
             ...item,
-            id: `PLN-LI-${now}-${item.id}`
+            id: `PLN-LI-${now}-${item.id}`,
+            qty: item.qty - (item.assignedQty || 0)
           });
         });
       } else {
@@ -130,7 +132,7 @@ export default function App() {
           materialName: req.name,
           spec: req.spec,
           unit: '个',
-          qty: req.qty - req.assignedQty,
+          qty: req.qty - (req.assignedQty || 0),
           unitPrice: req.unitPrice
         });
       }
@@ -139,14 +141,15 @@ export default function App() {
     if (targetPlanId) {
       setPlans(plans.map(p => {
         if (p.id === targetPlanId) {
-          const updatedPlan = {
+          const updatedPlan: Plan = {
             ...p,
             qty: p.qty + totalQty,
-            items: [...(p.items || []), ...newItems]
+            items: [...(p.items || []), ...newItems],
+            // If adding to an approved plan, move it back to draft so it can be re-submitted
+            auditStatus: p.auditStatus === AuditStatus.APPROVED ? AuditStatus.DRAFT : p.auditStatus
           };
-          if (viewingDoc && viewingDoc.id === targetPlanId) {
-            setViewingDoc(updatedPlan);
-          }
+          setViewingDoc(updatedPlan as any);
+          setCurrentView('VIEW_PLAN');
           return updatedPlan;
         }
         return p;
@@ -159,12 +162,14 @@ export default function App() {
         name: `采购计划汇总`,
         spec: selectedReqs.length === 1 ? selectedReqs[0].spec : '混合规格',
         qty: totalQty,
-        auditStatus: AuditStatus.APPROVED,
+        auditStatus: AuditStatus.DRAFT,
         processStatus: PlanProcessStatus.NORMAL,
         createdAt: new Date().toLocaleString(),
         items: newItems
       };
       setPlans(prev => [...prev, newPlan]);
+      setViewingDoc(newPlan as any);
+      setCurrentView('VIEW_PLAN');
     }
 
     const updatedReqs = requirements.map(req => {
@@ -185,10 +190,6 @@ export default function App() {
       timestamp: new Date().toLocaleString(),
     };
     setLineage([...lineage, newLineage]);
-    
-    if (!targetPlanId) {
-      setCurrentView('PLAN_POOL');
-    }
   };
 
   const handleCreateEmptyPlan = () => {
@@ -328,6 +329,7 @@ export default function App() {
 
   const handleViewDoc = (doc: Requirement | Plan | Subcontract | ProjectApproval, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
     setViewingDoc(doc as any);
+    setPreviousView(currentView);
     if (type === 'REQ') setCurrentView('VIEW_REQ');
     else if (type === 'PLAN') setCurrentView('VIEW_PLAN');
     else if (type === 'PROJECT') setCurrentView('VIEW_PROJECT');
@@ -608,16 +610,19 @@ export default function App() {
         if (itemIds.includes(item.id)) {
           const extractQty = itemQtyMap[item.id];
           subcontractItems.push({ ...item, qty: extractQty, sourcePlanId: plan.id });
-          return { ...item, qty: item.qty - extractQty };
+          return { ...item, assignedQty: (item.assignedQty || 0) + extractQty };
         }
         return item;
-      }).filter(item => item.qty > 0);
+      });
+
+      const totalAssigned = newItems.reduce((sum, i) => sum + (i.assignedQty || 0), 0);
+      const totalQty = newItems.reduce((sum, i) => sum + i.qty, 0);
 
       return {
         ...plan,
         items: newItems,
-        qty: newItems.reduce((sum, i) => sum + i.qty, 0),
-        processStatus: newItems.length === 0 ? PlanProcessStatus.SUBCONTRACTED : plan.processStatus
+        assignedQty: totalAssigned,
+        processStatus: totalAssigned >= totalQty ? PlanProcessStatus.SUBCONTRACTED : plan.processStatus
       };
     });
 
@@ -627,7 +632,17 @@ export default function App() {
       planIds: Array.from(new Set(subcontractTargetPlans.map(p => p.id))),
       status: '审核通过',
       createdAt: new Date().toLocaleString(),
-      items: subcontractItems
+      items: subcontractItems,
+      history: [
+        {
+          id: `H-SUB-${now}`,
+          type: 'SUBMIT',
+          opinion: '分包完成',
+          timestamp: new Date().toLocaleString(),
+          operator: '系统管理员',
+          status: '审核通过'
+        }
+      ]
     };
 
     setSubcontracts([...subcontracts, newSub]);
@@ -661,23 +676,22 @@ export default function App() {
       const itemsToReturn = subItems.filter(item => item.sourcePlanId === plan.id);
       if (itemsToReturn.length === 0) return plan;
 
-      let newItems = [...(plan.items || [])];
-      
-      itemsToReturn.forEach(itemToReturn => {
-        const existingItem = newItems.find(i => i.id === itemToReturn.id);
-        if (existingItem) {
-          existingItem.qty += itemToReturn.qty;
-        } else {
-          // If item was fully removed, add it back
-          newItems.push({ ...itemToReturn });
+      let newItems = (plan.items || []).map(item => {
+        const itemToReturn = itemsToReturn.find(i => i.id === item.id);
+        if (itemToReturn) {
+          return { ...item, assignedQty: Math.max(0, (item.assignedQty || 0) - itemToReturn.qty) };
         }
+        return item;
       });
+
+      const totalAssigned = newItems.reduce((sum, i) => sum + (i.assignedQty || 0), 0);
+      const totalQty = newItems.reduce((sum, i) => sum + i.qty, 0);
 
       return {
         ...plan,
         items: newItems,
-        qty: newItems.reduce((sum, i) => sum + i.qty, 0),
-        processStatus: plan.processStatus === PlanProcessStatus.SUBCONTRACTED ? PlanProcessStatus.NORMAL : plan.processStatus
+        assignedQty: totalAssigned,
+        processStatus: totalAssigned >= totalQty ? PlanProcessStatus.SUBCONTRACTED : PlanProcessStatus.NORMAL
       };
     });
 
@@ -691,7 +705,20 @@ export default function App() {
   };
 
   const handleSaveReq = (req: Requirement) => {
-    setRequirements([req, ...requirements]);
+    const updatedReq = { ...req };
+    if (req.auditStatus === AuditStatus.PENDING) {
+      updatedReq.history = [
+        {
+          id: `H-SUB-${Date.now()}`,
+          type: 'SUBMIT',
+          opinion: '提交申请',
+          timestamp: new Date().toLocaleString(),
+          operator: '系统管理员',
+          status: '待审核'
+        }
+      ];
+    }
+    setRequirements([updatedReq, ...requirements]);
     setCurrentView('REQ_APP');
   };
 
@@ -707,30 +734,105 @@ export default function App() {
   };
 
   const handleSubmitDoc = (id: string) => {
+    const timestamp = new Date().toLocaleString();
+    const submitRecord = {
+      id: `H-SUB-${Date.now()}`,
+      type: 'SUBMIT' as const,
+      opinion: '提交申请',
+      timestamp,
+      operator: '系统管理员',
+      status: '待审核'
+    };
+
     setRequirements(prev => prev.map(r => r.id === id ? { 
       ...r, 
-      auditStatus: r.auditStatus === AuditStatus.CHANGE_DRAFT ? AuditStatus.CHANGE_PENDING : 
-                  r.auditStatus === AuditStatus.TERMINATE_DRAFT ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING 
+      auditStatus: (r.auditStatus === AuditStatus.CHANGE_DRAFT || r.auditStatus === AuditStatus.CHANGE_REJECTED) ? AuditStatus.CHANGE_PENDING : 
+                  (r.auditStatus === AuditStatus.TERMINATE_DRAFT || r.auditStatus === AuditStatus.TERMINATE_REJECTED) ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING,
+      history: [...(r.history || []), submitRecord]
     } : r));
     setPlans(prev => prev.map(p => p.id === id ? { 
       ...p, 
-      auditStatus: p.auditStatus === AuditStatus.CHANGE_DRAFT ? AuditStatus.CHANGE_PENDING : 
-                  p.auditStatus === AuditStatus.TERMINATE_DRAFT ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING 
+      auditStatus: (p.auditStatus === AuditStatus.CHANGE_DRAFT || p.auditStatus === AuditStatus.CHANGE_REJECTED) ? AuditStatus.CHANGE_PENDING : 
+                  (p.auditStatus === AuditStatus.TERMINATE_DRAFT || p.auditStatus === AuditStatus.TERMINATE_REJECTED) ? AuditStatus.TERMINATE_PENDING : AuditStatus.PENDING,
+      history: [...(p.history || []), submitRecord]
     } : p));
   };
 
   const handleChangeDoc = (id: string, reason: string) => {
-    setRequirements(prev => prev.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.CHANGE_DRAFT, changeReason: reason } : r));
-    setPlans(prev => prev.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.CHANGE_DRAFT, changeReason: reason } : p));
+    const timestamp = new Date().toLocaleString();
+    const changeRecord = {
+      id: `H-CHG-${Date.now()}`,
+      type: 'CHANGE' as const,
+      reason,
+      timestamp,
+      operator: '系统管理员',
+      status: AuditStatus.CHANGE_DRAFT
+    };
+
+    setRequirements(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      auditStatus: AuditStatus.CHANGE_DRAFT, 
+      changeReason: reason,
+      history: [...(r.history || []), changeRecord]
+    } : r));
+    setPlans(prev => prev.map(p => p.id === id ? { 
+      ...p, 
+      auditStatus: AuditStatus.CHANGE_DRAFT, 
+      changeReason: reason,
+      history: [...(p.history || []), changeRecord]
+    } : p));
   };
 
   const handleTerminateDoc = (id: string, reason: string) => {
-    setRequirements(prev => prev.map(r => r.id === id ? { ...r, auditStatus: AuditStatus.TERMINATE_DRAFT, terminationReason: reason } : r));
-    setPlans(prev => prev.map(p => p.id === id ? { ...p, auditStatus: AuditStatus.TERMINATE_DRAFT, terminationReason: reason } : p));
+    const timestamp = new Date().toLocaleString();
+    const terminateRecord = {
+      id: `H-TRM-${Date.now()}`,
+      type: 'TERMINATE' as const,
+      reason,
+      timestamp,
+      operator: '系统管理员',
+      status: AuditStatus.TERMINATE_DRAFT
+    };
+
+    setRequirements(prev => prev.map(r => r.id === id ? { 
+      ...r, 
+      auditStatus: AuditStatus.TERMINATE_DRAFT, 
+      terminationReason: reason,
+      history: [...(r.history || []), terminateRecord]
+    } : r));
+    setPlans(prev => prev.map(p => p.id === id ? { 
+      ...p, 
+      auditStatus: AuditStatus.TERMINATE_DRAFT, 
+      terminationReason: reason,
+      history: [...(p.history || []), terminateRecord]
+    } : p));
   };
 
   const handleSaveProject = (project: ProjectApproval) => {
-    setProjects(prev => [...prev, project]);
+    const timestamp = new Date().toLocaleString();
+    const updatedProject = { ...project };
+    
+    if (project.status === '待审核') {
+      updatedProject.history = [
+        ...(project.history || []),
+        {
+          id: `H-SUB-${Date.now()}`,
+          type: 'SUBMIT' as const,
+          opinion: '提交立项申请',
+          timestamp,
+          operator: '系统管理员',
+          status: '待审核'
+        }
+      ];
+    }
+
+    setProjects(prev => {
+      const exists = prev.some(p => p.id === updatedProject.id);
+      if (exists) {
+        return prev.map(p => p.id === updatedProject.id ? updatedProject : p);
+      }
+      return [...prev, updatedProject];
+    });
     setCurrentView('PROJECT_APP');
   };
 
@@ -747,7 +849,7 @@ export default function App() {
           // Archive original
           const archivedDoc = { 
             ...doc, 
-            auditStatus: AuditStatus.APPROVED, 
+            auditStatus: AuditStatus.CHANGE_APPROVED, 
             processStatus: ReqProcessStatus.ARCHIVED,
             history: [
               ...newHistory,
@@ -757,8 +859,8 @@ export default function App() {
                 reason: doc.changeReason || '',
                 opinion: opinion,
                 timestamp,
-                operator: '管理员',
-                status: AuditStatus.APPROVED
+                operator: '系统管理员',
+                status: AuditStatus.CHANGE_APPROVED
               }
             ]
           };
@@ -799,7 +901,7 @@ export default function App() {
         if (doc.auditStatus === AuditStatus.TERMINATE_PENDING) {
           return prev.map(r => r.id === id ? { 
             ...r, 
-            auditStatus: AuditStatus.TERMINATED, 
+            auditStatus: AuditStatus.TERMINATE_APPROVED, 
             processStatus: ReqProcessStatus.TERMINATED,
             history: [
               ...newHistory,
@@ -809,8 +911,8 @@ export default function App() {
                 reason: r.terminationReason || '',
                 opinion: opinion,
                 timestamp,
-                operator: '管理员',
-                status: AuditStatus.TERMINATED
+                operator: '系统管理员',
+                status: AuditStatus.TERMINATE_APPROVED
               }
             ]
           } : r);
@@ -827,7 +929,7 @@ export default function App() {
               type: 'APPROVE' as const,
               opinion: opinion || '审核通过',
               timestamp,
-              operator: '管理员',
+              operator: '系统管理员',
               status: AuditStatus.APPROVED
             }
           ]
@@ -844,7 +946,7 @@ export default function App() {
           // Archive original
           const archivedDoc = { 
             ...doc, 
-            auditStatus: AuditStatus.APPROVED, 
+            auditStatus: AuditStatus.CHANGE_APPROVED, 
             processStatus: PlanProcessStatus.ARCHIVED,
             history: [
               ...newHistory,
@@ -854,8 +956,8 @@ export default function App() {
                 reason: doc.changeReason || '',
                 opinion: opinion,
                 timestamp,
-                operator: '管理员',
-                status: AuditStatus.APPROVED
+                operator: '系统管理员',
+                status: AuditStatus.CHANGE_APPROVED
               }
             ]
           };
@@ -896,7 +998,7 @@ export default function App() {
         if (doc.auditStatus === AuditStatus.TERMINATE_PENDING) {
           return prev.map(p => p.id === id ? { 
             ...p, 
-            auditStatus: AuditStatus.TERMINATED, 
+            auditStatus: AuditStatus.TERMINATE_APPROVED, 
             processStatus: PlanProcessStatus.TERMINATED,
             history: [
               ...newHistory,
@@ -906,8 +1008,8 @@ export default function App() {
                 reason: p.terminationReason || '',
                 opinion: opinion,
                 timestamp,
-                operator: '管理员',
-                status: AuditStatus.TERMINATED
+                operator: '系统管理员',
+                status: AuditStatus.TERMINATE_APPROVED
               }
             ]
           } : p);
@@ -924,7 +1026,7 @@ export default function App() {
               type: 'APPROVE' as const,
               opinion: opinion || '审核通过',
               timestamp,
-              operator: '管理员',
+              operator: '系统管理员',
               status: AuditStatus.APPROVED
             }
           ]
@@ -934,6 +1036,7 @@ export default function App() {
       setProjects(projects.map(p => p.id === id ? { 
         ...p, 
         status: '审核通过',
+        lots: p.lots.map(l => ({ ...l, status: '审核通过' })),
         history: [
           ...(p.history || []),
           {
@@ -941,7 +1044,7 @@ export default function App() {
             type: 'APPROVE' as const,
             opinion: opinion || '审核通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: '审核通过'
           }
         ]
@@ -957,7 +1060,7 @@ export default function App() {
             type: 'APPROVE' as const,
             opinion: opinion || '审核通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: '审核通过'
           }
         ]
@@ -976,7 +1079,7 @@ export default function App() {
             type: 'REJECT' as const,
             opinion: opinion || '审核不通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: AuditStatus.REJECTED
           });
           if (r.auditStatus === AuditStatus.CHANGE_PENDING) return { ...r, auditStatus: AuditStatus.CHANGE_REJECTED, history: newHistory };
@@ -994,7 +1097,7 @@ export default function App() {
             type: 'REJECT' as const,
             opinion: opinion || '审核不通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: AuditStatus.REJECTED
           });
           if (p.auditStatus === AuditStatus.CHANGE_PENDING) return { ...p, auditStatus: AuditStatus.CHANGE_REJECTED, history: newHistory };
@@ -1007,6 +1110,7 @@ export default function App() {
       setProjects(projects.map(p => p.id === id ? { 
         ...p, 
         status: '审核不通过',
+        lots: p.lots.map(l => ({ ...l, status: '编辑中' })),
         history: [
           ...(p.history || []),
           {
@@ -1014,7 +1118,7 @@ export default function App() {
             type: 'REJECT' as const,
             opinion: opinion || '审核不通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: '审核不通过'
           }
         ]
@@ -1030,7 +1134,7 @@ export default function App() {
             type: 'REJECT' as const,
             opinion: opinion || '审核不通过',
             timestamp,
-            operator: '管理员',
+            operator: '系统管理员',
             status: '审核不通过'
           }
         ]
@@ -1313,7 +1417,10 @@ export default function App() {
                     type="REQ" 
                     lineage={lineage}
                     requirements={requirements}
-                    onClose={() => setCurrentView('REQ_APP')} 
+                    onClose={() => {
+                      setCurrentView(previousView || 'REQ_APP');
+                      setPreviousView(null);
+                    }} 
                     onUpdate={handleUpdateDoc}
                     onSubmit={handleSubmitDoc}
                     onChange={handleChangeDoc}
@@ -1330,7 +1437,10 @@ export default function App() {
                     type="PLAN" 
                     lineage={lineage}
                     requirements={requirements}
-                    onClose={() => setCurrentView('PLAN_POOL')} 
+                    onClose={() => {
+                      setCurrentView(previousView || 'PLAN_POOL');
+                      setPreviousView(null);
+                    }} 
                     onUpdate={handleUpdateDoc}
                     onSubmit={handleSubmitDoc}
                     onChange={handleChangeDoc}
@@ -1418,6 +1528,7 @@ export default function App() {
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onReject={(id) => handleReject(id, 'REQ')}
                     onDelete={handleDeleteRequirement}
                     mode="CHANGE"
                     onInitiate={() => {
@@ -1438,6 +1549,7 @@ export default function App() {
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onReject={(id) => handleReject(id, 'REQ')}
                     onDelete={handleDeleteRequirement}
                     mode="TERMINATE"
                     onInitiate={() => {
@@ -1459,6 +1571,7 @@ export default function App() {
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onReject={(id) => handleReject(id, 'PLAN')}
                     onDelete={handleDeletePlan}
                     onPickRequirements={(targetId) => {
                       setPickReqTargetId(targetId);
@@ -1484,6 +1597,7 @@ export default function App() {
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onReject={(id) => handleReject(id, 'PLAN')}
                     onDelete={handleDeletePlan}
                     onPickRequirements={(targetId) => {
                       setPickReqTargetId(targetId);
@@ -1518,7 +1632,10 @@ export default function App() {
               {currentView === 'VIEW_PROJECT' && viewingDoc && (
                 <motion.div key="view-project" initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }} className="h-full">
                   <CreateProjectApproval 
-                    onClose={() => setCurrentView('PROJECT_APP')} 
+                    onClose={() => {
+                      setCurrentView(previousView || 'PROJECT_APP');
+                      setPreviousView(null);
+                    }} 
                     onSave={handleSaveProject}
                     onApprove={(id, opinion) => handleApprove(id, 'PROJECT', opinion)}
                     onReject={(id, opinion) => handleReject(id, 'PROJECT', opinion)}
@@ -1536,7 +1653,10 @@ export default function App() {
                     type="SUB" 
                     lineage={lineage}
                     requirements={requirements}
-                    onClose={() => setCurrentView('SUB_POOL')} 
+                    onClose={() => {
+                      setCurrentView(previousView || 'SUB_POOL');
+                      setPreviousView(null);
+                    }} 
                     onUpdate={handleUpdateDoc}
                     onApprove={(id, opinion) => handleApprove(id, 'SUB', opinion)}
                     onReject={(id, opinion) => handleReject(id, 'SUB', opinion)}
