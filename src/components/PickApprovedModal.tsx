@@ -24,13 +24,15 @@ export const PickApprovedModal: React.FC<PickApprovedModalProps> = ({ type, acti
       return requirements.filter(r => 
         r.auditStatus === AuditStatus.APPROVED && 
         r.processStatus !== ReqProcessStatus.COMPLETED &&
-        r.processStatus !== ReqProcessStatus.TERMINATED
+        r.processStatus !== ReqProcessStatus.TERMINATED &&
+        r.processStatus !== ReqProcessStatus.ARCHIVED
       );
     } else {
       return plans.filter(p => 
         p.auditStatus === AuditStatus.APPROVED && 
         p.processStatus !== PlanProcessStatus.SUBCONTRACTED &&
-        p.processStatus !== PlanProcessStatus.TERMINATED
+        p.processStatus !== PlanProcessStatus.TERMINATED &&
+        p.processStatus !== PlanProcessStatus.ARCHIVED
       );
     }
   }, [type, requirements, plans]);

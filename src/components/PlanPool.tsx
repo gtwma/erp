@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Plan, AuditStatus, PlanProcessStatus, LineageRelation, MOCK_INVENTORY, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, UserPlus, Package, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, GitMerge, GitBranch, History as HistoryIcon, AlertTriangle, CheckCircle2, Plus } from 'lucide-react';
+import { Search, Filter, UserPlus, Package, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, GitMerge, GitBranch, History as HistoryIcon, AlertTriangle, CheckCircle2, Plus, PlusCircle, Trash2 } from 'lucide-react';
 import { SearchForm } from './SearchForm';
 
 const InventoryCheck: React.FC<{ materialCode: string; requiredQty: number }> = ({ materialCode, requiredQty }) => {
@@ -48,12 +48,13 @@ interface PlanPoolProps {
   onView: (plan: Plan) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onDelete?: (ids: string[]) => void;
   onPickRequirements: (targetId?: string) => void;
   mode?: 'NORMAL' | 'CHANGE' | 'TERMINATE';
   onInitiate?: () => void;
 }
 
-export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, onSubcontract, onMerge, onSplit, onView, onApprove, onReject, onPickRequirements, mode = 'NORMAL', onInitiate }) => {
+export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, onSubcontract, onMerge, onSplit, onView, onApprove, onReject, onDelete, onPickRequirements, mode = 'NORMAL', onInitiate }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useState<SearchParams>({
     sortBy: 'createdAt',
@@ -168,9 +169,9 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
               </span>
               <button
                 onClick={() => onAssign(selectedIds)}
-                disabled={selectedIds.length === 0 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.processStatus === PlanProcessStatus.SPLIT)}
+                disabled={selectedIds.length === 0 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.processStatus === PlanProcessStatus.SPLIT || p.processStatus === PlanProcessStatus.ARCHIVED)}
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium transition-colors ${
-                  (selectedIds.length === 0 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.processStatus === PlanProcessStatus.SPLIT)) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
+                  (selectedIds.length === 0 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.processStatus === PlanProcessStatus.SPLIT || p.processStatus === PlanProcessStatus.ARCHIVED)) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#2196F3] text-white hover:bg-blue-600'
                 }`}
               >
                 <span>一键指派</span>
@@ -181,11 +182,12 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                   selectedIds.length !== 1 || 
                   plans.find(p => p.id === selectedIds[0])?.auditStatus === AuditStatus.REJECTED ||
                   plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED ||
-                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT
+                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT ||
+                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.ARCHIVED
                 }
                 title={selectedIds.length > 1 ? "组建分包仅支持单项计划（合并后的汇总计划可作为单项进行分包）" : selectedIds.length === 1 && plans.find(p => p.id === selectedIds[0])?.auditStatus === AuditStatus.REJECTED ? "已驳回的计划无法组建分包" : ""}
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-                  (selectedIds.length !== 1 || plans.find(p => p.id === selectedIds[0])?.auditStatus === AuditStatus.REJECTED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
+                  (selectedIds.length !== 1 || plans.find(p => p.id === selectedIds[0])?.auditStatus === AuditStatus.REJECTED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.ARCHIVED) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
                 }`}
               >
                 <span>组建分包</span>
@@ -194,10 +196,10 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                 onClick={() => onMerge(selectedIds)}
                 disabled={
                   selectedIds.length < 2 || 
-                  plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.auditStatus === AuditStatus.REJECTED || p.processStatus === PlanProcessStatus.SPLIT)
+                  plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.auditStatus === AuditStatus.REJECTED || p.processStatus === PlanProcessStatus.SPLIT || p.processStatus === PlanProcessStatus.ARCHIVED)
                 }
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-                  (selectedIds.length < 2 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.auditStatus === AuditStatus.REJECTED || p.processStatus === PlanProcessStatus.SPLIT))
+                  (selectedIds.length < 2 || plans.filter(p => selectedIds.includes(p.id)).some(p => p.processStatus === PlanProcessStatus.MERGED || p.auditStatus === AuditStatus.REJECTED || p.processStatus === PlanProcessStatus.SPLIT || p.processStatus === PlanProcessStatus.ARCHIVED))
                     ? 'border-gray-200 text-gray-300 cursor-not-allowed' 
                     : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
                 }`}
@@ -211,10 +213,11 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                 disabled={
                   selectedIds.length !== 1 ||
                   plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED ||
-                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT
+                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT ||
+                  plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.ARCHIVED
                 }
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-                  (selectedIds.length !== 1 || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
+                  (selectedIds.length !== 1 || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.MERGED || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.SPLIT || plans.find(p => p.id === selectedIds[0])?.processStatus === PlanProcessStatus.ARCHIVED) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
                 }`}
               >
                 <span>拆分计划</span>
@@ -225,12 +228,32 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
               <span className="text-xs font-medium text-erp-text-sub">
                 {selectedIds.length > 0 ? `已选择 ${selectedIds.length} 项` : '未选择项'}
               </span>
-              <button 
-                onClick={onInitiate}
-                className="px-4 py-1.5 bg-orange-500 text-white rounded-[2px] text-xs font-medium hover:bg-orange-600 transition-colors"
-              >
-                <span>{mode === 'CHANGE' ? '发起变更' : '发起取消'}</span>
-              </button>
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={onInitiate}
+                  className="px-4 py-1.5 bg-orange-500 text-white rounded-[2px] text-xs font-medium hover:bg-orange-600 transition-colors flex items-center space-x-1.5"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>{mode === 'CHANGE' ? '新增计划变更' : '新增计划取消'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (onDelete) {
+                      onDelete(selectedIds);
+                      setSelectedIds([]);
+                    }
+                  }}
+                  disabled={selectedIds.length === 0}
+                  className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors flex items-center space-x-1.5 ${
+                    selectedIds.length === 0 
+                      ? 'border-gray-200 text-gray-300 cursor-not-allowed' 
+                      : 'border-red-200 text-red-500 hover:bg-red-50 bg-white'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>删除</span>
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -289,7 +312,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                     className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary disabled:opacity-30 disabled:cursor-not-allowed"
                     checked={selectedIds.includes(plan.id)}
                     onChange={() => toggleSelect(plan.id)}
-                    disabled={plan.processStatus === PlanProcessStatus.MERGED || plan.processStatus === PlanProcessStatus.SPLIT}
+                    disabled={plan.processStatus === PlanProcessStatus.MERGED || plan.processStatus === PlanProcessStatus.SPLIT || plan.processStatus === PlanProcessStatus.ARCHIVED}
                   />
                 </td>
                 <td className="px-4 py-2.5 text-center text-erp-text-sub">{index + 1}</td>
@@ -372,6 +395,7 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                     plan.processStatus === PlanProcessStatus.MERGED ? 'text-purple-500' :
                     plan.processStatus === PlanProcessStatus.SPLIT ? 'text-indigo-500' :
                     plan.processStatus === PlanProcessStatus.ASSIGNED ? 'text-blue-500' :
+                    plan.processStatus === PlanProcessStatus.ARCHIVED ? 'text-gray-400 italic' :
                     plan.processStatus === PlanProcessStatus.SUBCONTRACTED ? 'text-gray-500' : 'text-erp-text-sub'
                   }`}>
                     {plan.processStatus}
@@ -380,11 +404,30 @@ export const PlanPool: React.FC<PlanPoolProps> = ({ plans, lineage, onAssign, on
                 <td className="px-4 py-2.5 text-center">
                   <div className="flex items-center justify-center space-x-2">
                     <button 
+                      onClick={() => onView(plan)}
                       className="text-erp-secondary hover:text-blue-700" 
                       title={plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT ? "编辑" : "查看"}
                     >
                       {plan.auditStatus === AuditStatus.DRAFT || plan.auditStatus === AuditStatus.REJECTED || plan.auditStatus === AuditStatus.CHANGE_DRAFT ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
                     </button>
+                    {(plan.auditStatus === AuditStatus.PENDING || plan.auditStatus === AuditStatus.CHANGE_PENDING || plan.auditStatus === AuditStatus.TERMINATE_PENDING) && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onApprove(plan.id); }}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onReject(plan.id); }}
+                          className="text-red-500 hover:text-red-700" 
+                          title="审核不通过"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

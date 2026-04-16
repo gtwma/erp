@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Requirement, AuditStatus, ReqProcessStatus, LineageRelation, MOCK_INVENTORY, SearchParams } from '../types';
 import { StatusBadge } from './StatusBadge';
-import { Search, Filter, Plus, PlusCircle, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History as HistoryIcon, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, Plus, PlusCircle, GitMerge, GitBranch, ArrowRight, X, Check, ClipboardList, Pencil, Settings, Eye, FileText, History as HistoryIcon, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import { SearchForm } from './SearchForm';
 
 const InventoryCheck: React.FC<{ materialCode: string; requiredQty: number }> = ({ materialCode, requiredQty }) => {
@@ -47,6 +47,7 @@ interface RequirementPoolProps {
   onView: (req: Requirement) => void;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onDelete?: (ids: string[]) => void;
   mode?: 'NORMAL' | 'CHANGE' | 'TERMINATE';
   onInitiate?: () => void;
 }
@@ -60,6 +61,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
   onView,
   onApprove,
   onReject,
+  onDelete,
   mode = 'NORMAL',
   onInitiate
 }) => {
@@ -172,10 +174,10 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 }}
                 disabled={
                   selectedIds.length === 0 || 
-                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED)
+                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.ARCHIVED)
                 }
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium transition-colors ${
-                  (selectedIds.length === 0 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED)) 
+                  (selectedIds.length === 0 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.ARCHIVED)) 
                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
                     : 'bg-[#2196F3] text-white hover:bg-blue-600'
                 }`}
@@ -189,10 +191,10 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 }}
                 disabled={
                   selectedIds.length < 2 || 
-                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.SPLIT)
+                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.SPLIT || r.processStatus === ReqProcessStatus.ARCHIVED)
                 }
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-                  (selectedIds.length < 2 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED))
+                  (selectedIds.length < 2 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.auditStatus !== AuditStatus.APPROVED || r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.ARCHIVED))
                     ? 'border-gray-200 text-gray-300 cursor-not-allowed' 
                     : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
                 }`}
@@ -205,23 +207,42 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 }}
                 disabled={
                   selectedIds.length !== 1 || 
-                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.processStatus === ReqProcessStatus.MERGED)
+                  requirements.filter(r => selectedIds.includes(r.id)).some(r => r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.ARCHIVED)
                 }
                 className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors ${
-                  (selectedIds.length !== 1 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.processStatus === ReqProcessStatus.MERGED)) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
+                  (selectedIds.length !== 1 || requirements.filter(r => selectedIds.includes(r.id)).some(r => r.processStatus === ReqProcessStatus.MERGED || r.processStatus === ReqProcessStatus.ARCHIVED)) ? 'border-gray-200 text-gray-300 cursor-not-allowed' : 'border-gray-300 text-gray-600 hover:bg-gray-50 bg-white'
                 }`}
               >
                 <span>拆分需求</span>
               </button>
             </>
           ) : (
-            <button
-              onClick={onInitiate}
-              className="px-4 py-1.5 rounded-[2px] text-xs font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm flex items-center space-x-1.5"
-            >
-              <PlusCircle className="w-3.5 h-3.5" />
-              <span>{mode === 'CHANGE' ? '发起变更' : '发起取消'}</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={onInitiate}
+                className="px-4 py-1.5 rounded-[2px] text-xs font-medium bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm flex items-center space-x-1.5"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>{mode === 'CHANGE' ? '新增需求变更' : '新增需求取消'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (onDelete) {
+                    onDelete(selectedIds);
+                    setSelectedIds([]);
+                  }
+                }}
+                disabled={selectedIds.length === 0}
+                className={`px-4 py-1.5 rounded-[2px] text-xs font-medium border transition-colors flex items-center space-x-1.5 ${
+                  selectedIds.length === 0 
+                    ? 'border-gray-200 text-gray-300 cursor-not-allowed' 
+                    : 'border-red-200 text-red-500 hover:bg-red-50 bg-white'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>删除</span>
+              </button>
+            </div>
           )}
         </div>
         
@@ -277,7 +298,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                     className="rounded border-gray-300 text-erp-secondary focus:ring-erp-secondary disabled:opacity-30 disabled:cursor-not-allowed"
                     checked={selectedIds.includes(req.id)}
                     onChange={() => toggleSelect(req.id)}
-                    disabled={req.processStatus === ReqProcessStatus.SPLIT || req.processStatus === ReqProcessStatus.MERGED}
+                    disabled={req.processStatus === ReqProcessStatus.SPLIT || req.processStatus === ReqProcessStatus.MERGED || req.processStatus === ReqProcessStatus.ARCHIVED}
                   />
                 </td>
                 <td className="px-4 py-2.5 text-center text-erp-text-sub">{index + 1}</td>
@@ -327,6 +348,7 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                   <span className={`text-[11px] ${
                     req.processStatus === ReqProcessStatus.MERGED ? 'text-purple-500' :
                     req.processStatus === ReqProcessStatus.SPLIT ? 'text-indigo-500' :
+                    req.processStatus === ReqProcessStatus.ARCHIVED ? 'text-gray-400 italic' :
                     req.processStatus === ReqProcessStatus.COMPLETED ? 'text-gray-500' : 'text-erp-text-sub'
                   }`}>
                     {req.processStatus}
@@ -335,11 +357,30 @@ export const RequirementPool: React.FC<RequirementPoolProps> = ({
                 <td className="px-4 py-2.5 text-center">
                   <div className="flex items-center justify-center space-x-2">
                     <button 
+                      onClick={() => onView(req)}
                       className="text-erp-secondary hover:text-blue-700" 
                       title={req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT ? "编辑" : "查看"}
                     >
                       {req.auditStatus === AuditStatus.DRAFT || req.auditStatus === AuditStatus.REJECTED || req.auditStatus === AuditStatus.CHANGE_DRAFT ? <Pencil className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
                     </button>
+                    {(req.auditStatus === AuditStatus.PENDING || req.auditStatus === AuditStatus.CHANGE_PENDING || req.auditStatus === AuditStatus.TERMINATE_PENDING) && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onApprove(req.id); }}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onReject(req.id); }}
+                          className="text-red-500 hover:text-red-700" 
+                          title="审核不通过"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

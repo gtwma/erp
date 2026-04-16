@@ -237,8 +237,27 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                     >
                       <Search className="w-3.5 h-3.5" />
                     </button>
+                    {sub.status === '待审核' && (
+                      <>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onApprove?.(sub.id); }}
+                          className="text-green-500 hover:text-green-700" 
+                          title="审核通过"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onReject?.(sub.id); }}
+                          className="text-red-500 hover:text-red-700" 
+                          title="审核不通过"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
                     <button 
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (window.confirm('确定要删除该分包吗？相关物料将返回至原始计划。')) {
                           onDelete?.(sub.id);
                         }
@@ -248,24 +267,6 @@ export const SubcontractPool: React.FC<SubcontractPoolProps> = ({ subcontracts, 
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                    {onApprove && sub.status !== '审核通过' && (
-                      <div className="flex items-center space-x-2">
-                        <button 
-                          onClick={() => onApprove(sub.id)}
-                          className="text-green-500 hover:text-green-700" 
-                          title="审核通过"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button 
-                          onClick={() => onReject?.(sub.id)}
-                          className="text-red-500 hover:text-red-700" 
-                          title="审核不通过"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </td>
               </tr>

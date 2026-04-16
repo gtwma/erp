@@ -24,6 +24,7 @@ export enum ReqProcessStatus {
   COMPLETED = '已转计划',
   CANCELLED = '已取消',
   TERMINATED = '已终止',
+  ARCHIVED = '已封存',
 }
 
 export enum PlanProcessStatus {
@@ -34,6 +35,7 @@ export enum PlanProcessStatus {
   MERGED = '已合并',
   CANCELLED = '已取消',
   TERMINATED = '已终止',
+  ARCHIVED = '已封存',
 }
 
 export interface LineItem {
@@ -49,15 +51,17 @@ export interface LineItem {
 
 export interface HistoryRecord {
   id: string;
-  type: 'CHANGE' | 'TERMINATE';
-  reason: string;
+  type: 'CHANGE' | 'TERMINATE' | 'APPROVE' | 'REJECT' | 'SUBMIT';
+  reason?: string;
+  opinion?: string;
   timestamp: string;
   operator: string;
-  status: AuditStatus;
+  status: AuditStatus | string;
 }
 
 export interface Requirement {
   id: string;
+  type?: '工程' | '货物' | '服务';
   materialCode: string;
   name: string;
   spec: string;
@@ -119,6 +123,7 @@ export interface Subcontract {
   status: '编辑中' | '待审核' | '审核通过' | '审核不通过' | '进行中' | '已完成';
   createdAt: string;
   items?: LineItem[];
+  history?: HistoryRecord[];
 }
 
 export interface LineageRelation {
@@ -151,6 +156,7 @@ export interface ProjectApproval {
   type: '国有资金控股或占主导地位的依法招标' | '其他情形的采购';
   location: string;
   summary: string;
+  history?: HistoryRecord[];
 }
 
 export interface Inventory {

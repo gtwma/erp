@@ -4,30 +4,44 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Requirement, AuditStatus, ReqProcessStatus } from '../types';
+import { Requirement, Plan, AuditStatus, ReqProcessStatus, PlanProcessStatus, LineItem } from '../types';
 import { X, Save, AlertCircle, ChevronDown, Plus, Trash2, ClipboardList, Package, Search } from 'lucide-react';
 import { MATERIAL_MASTER } from '../constants';
 
 import { InventorySection, AttachmentSection, ProcessHistorySection } from './CommonSections';
 
-interface CreateRequirementProps {
+interface InitiateActionFormProps {
+  initialDoc: Requirement | Plan;
+  type: 'REQ' | 'PLAN';
+  actionType: 'CHANGE' | 'TERMINATE';
   onClose: () => void;
-  onSave: (req: Requirement) => void;
+  onSave: (doc: Requirement | Plan) => void;
 }
 
-export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, onSave }) => {
+export const InitiateActionForm: React.FC<InitiateActionFormProps> = ({ 
+  initialDoc, 
+  type, 
+  actionType, 
+  onClose, 
+  onSave 
+}) => {
+  const isReq = type === 'REQ';
+  const isChange = actionType === 'CHANGE';
+  
   const [formData, setFormData] = useState({
-    name: '',
-    type: '货物',
-    applyUnit: '系统管理部',
-    applyPerson: '系统管理员',
-    applyDate: new Date().toISOString().split('T')[0],
-    reason: '',
+    name: initialDoc.name || '',
+    type: isReq ? (initialDoc as Requirement).type || '货物' : (initialDoc as Plan).attribute || '货物',
+    applyUnit: isReq ? (initialDoc as Requirement).creator || '系统管理部' : (initialDoc as Plan).procurementDept || '系统管理部',
+    applyPerson: isReq ? (initialDoc as Requirement).creator || '系统管理员' : (initialDoc as Plan).procurementManager || '系统管理员',
+    applyDate: initialDoc.createdAt.split(' ')[0] || new Date().toISOString().split('T')[0],
+    reason: isChange ? initialDoc.changeReason || '' : initialDoc.terminationReason || '',
   });
 
-  const [items, setItems] = useState([
-    { id: '1', materialName: '', materialCode: '', spec: '', unit: '个', qty: 1, unitPrice: 0 }
-  ]);
+  const [items, setItems] = useState<LineItem[]>(
+    initialDoc.items && initialDoc.items.length > 0 
+      ? [...initialDoc.items] 
+      : [{ id: '1', materialName: initialDoc.name, materialCode: initialDoc.materialCode, spec: initialDoc.spec, unit: '个', qty: initialDoc.qty, unitPrice: initialDoc.unitPrice }]
+  );
 
   const [lookup, setLookup] = useState<{
     index: number;
@@ -79,7 +93,7 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
   };
 
   const addItem = () => {
-    setItems([...items, { id: Date.now().toString(), materialName: '', materialCode: '', spec: '', unit: '个', qty: 1, unitPrice: 0 }]);
+    setItems([...items, { id: `LI-${Date.now()}`, materialName: '', materialCode: '', spec: '', unit: '个', qty: 1, unitPrice: 0 }]);
   };
 
   const removeItem = (id: string) => {
@@ -91,38 +105,30 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
   const handleSubmit = (e: React.FormEvent, isDraft: boolean = false) => {
     e.preventDefault();
 
-    // Validate that all items have material code and name
     const invalidItems = items.filter(item => !item.materialCode || !item.materialName);
     if (invalidItems.length > 0 && !isDraft) {
-      alert('每个采购需求明细必须包含物料信息（名称和编码）！');
+      alert('每个明细必须包含物料信息（名称和编码）！');
       return;
     }
 
-    const newReq: Requirement = {
-      id: `REQ-${Date.now()}`,
-      type: formData.type as any,
-      name: formData.name || '采购申请单',
-      materialCode: items[0].materialCode,
-      spec: items[0].spec,
+    const updatedDoc: any = {
+      ...initialDoc,
+      name: formData.name,
+      [isReq ? 'type' : 'attribute']: formData.type,
       qty: items.reduce((sum, item) => sum + item.qty, 0),
-      assignedQty: 0,
-      unitPrice: items[0].unitPrice,
-      auditStatus: isDraft ? AuditStatus.DRAFT : AuditStatus.PENDING,
-      processStatus: ReqProcessStatus.NORMAL,
-      createdAt: new Date().toLocaleString(),
-      creator: formData.applyPerson,
-      items: items.map(item => ({
-        id: `LI-${item.id}`,
-        materialCode: item.materialCode,
-        materialName: item.materialName,
-        spec: item.spec,
-        unit: item.unit,
-        qty: item.qty,
-        unitPrice: item.unitPrice
-      }))
+      items: items,
+      auditStatus: isChange 
+        ? (isDraft ? AuditStatus.CHANGE_DRAFT : AuditStatus.CHANGE_PENDING)
+        : (isDraft ? AuditStatus.TERMINATE_DRAFT : AuditStatus.TERMINATE_PENDING),
+      changeReason: isChange ? formData.reason : initialDoc.changeReason,
+      terminationReason: !isChange ? formData.reason : initialDoc.terminationReason,
     };
-    onSave(newReq);
+
+    onSave(updatedDoc);
   };
+
+  const actionLabel = isChange ? '变更' : '取消';
+  const docTypeLabel = isReq ? '需求' : '计划';
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
@@ -136,7 +142,7 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
               className="px-4 py-1.5 rounded-[2px] text-xs font-medium text-white bg-[#2196F3] hover:bg-blue-600 transition-all shadow-sm flex items-center space-x-1.5"
             >
               <ClipboardList className="w-3.5 h-3.5" />
-              <span>提交申请</span>
+              <span>提交{actionLabel}</span>
             </button>
             <button
               type="button"
@@ -156,10 +162,10 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
           </div>
           <div className="h-6 w-px bg-gray-200 mx-2" />
           <div className="flex flex-col">
-            <span className="text-xs font-bold text-erp-text-main">采购需求申请</span>
+            <span className="text-xs font-bold text-erp-text-main">采购{docTypeLabel}{actionLabel}申请</span>
             <div className="flex items-center space-x-3 mt-0.5">
-              <span className="text-[10px] text-erp-text-sub">申请编号: <span className="text-erp-text-main">自动生成</span></span>
-              <span className="text-[10px] text-erp-text-sub">状态: <span className="text-blue-500 font-medium">草稿</span></span>
+              <span className="text-[10px] text-erp-text-sub">单据编号: <span className="text-erp-text-main">{initialDoc.id}</span></span>
+              <span className="text-[10px] text-erp-text-sub">状态: <span className="text-blue-500 font-medium">编辑中</span></span>
             </div>
           </div>
         </div>
@@ -232,12 +238,13 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
             </div>
 
             <div className="col-span-2 flex items-start space-x-4">
-              <label className="w-32 text-right text-xs text-erp-text-main pt-2 shrink-0">
-                申请原因:
+              <label className="w-32 text-right text-xs text-erp-text-main pt-2 shrink-0 font-bold">
+                {actionLabel}理由: <span className="text-red-500">*</span>
               </label>
               <textarea 
-                className="flex-1 border border-erp-border rounded p-2 text-xs outline-none focus:border-erp-secondary h-16"
-                placeholder="请输入申请原因"
+                required
+                className="flex-1 border border-blue-300 rounded p-2 text-xs outline-none focus:border-erp-secondary h-16 bg-blue-50/30"
+                placeholder={`请输入${actionLabel}理由`}
                 value={formData.reason}
                 onChange={e => setFormData({...formData, reason: e.target.value})}
               />
@@ -250,7 +257,7 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
           <div className="px-4 py-2 bg-white border-b border-blue-100 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <span className="text-blue-500 font-bold text-xs">02</span>
-              <span className="text-blue-500 font-bold text-xs">需求明细</span>
+              <span className="text-blue-500 font-bold text-xs">{docTypeLabel}明细</span>
             </div>
             <ChevronDown className="w-4 h-4 text-blue-400" />
           </div>
@@ -343,77 +350,77 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
                             )}
                           </div>
                         </td>
-                      <td className="px-4 py-2">
-                        <input 
-                          type="text" 
-                          className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
-                          value={item.spec}
-                          onChange={e => {
-                            const newItems = [...items];
-                            newItems[index].spec = e.target.value;
-                            setItems(newItems);
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input 
-                          type="text" 
-                          className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
-                          value={item.unit}
-                          onChange={e => {
-                            const newItems = [...items];
-                            newItems[index].unit = e.target.value;
-                            setItems(newItems);
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input 
-                          required
-                          type="number" 
-                          min="1"
-                          className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
-                          value={item.qty}
-                          onChange={e => {
-                            const newItems = [...items];
-                            newItems[index].qty = Number(e.target.value);
-                            setItems(newItems);
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input 
-                          type="number" 
-                          step="0.01"
-                          className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
-                          value={item.unitPrice}
-                          onChange={e => {
-                            const newItems = [...items];
-                            newItems[index].unitPrice = Number(e.target.value);
-                            setItems(newItems);
-                          }}
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input 
-                          type="text" 
-                          className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none bg-gray-50" 
-                          value={(item.qty * item.unitPrice).toFixed(2)}
-                          readOnly
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-center">
-                        <button 
-                          type="button"
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-400 hover:text-red-600 disabled:opacity-30"
-                          disabled={items.length === 1}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="px-4 py-2">
+                          <input 
+                            type="text" 
+                            className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
+                            value={item.spec}
+                            onChange={e => {
+                              const newItems = [...items];
+                              newItems[index].spec = e.target.value;
+                              setItems(newItems);
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input 
+                            type="text" 
+                            className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
+                            value={item.unit}
+                            onChange={e => {
+                              const newItems = [...items];
+                              newItems[index].unit = e.target.value;
+                              setItems(newItems);
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input 
+                            required
+                            type="number" 
+                            min="1"
+                            className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
+                            value={item.qty}
+                            onChange={e => {
+                              const newItems = [...items];
+                              newItems[index].qty = Number(e.target.value);
+                              setItems(newItems);
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input 
+                            type="number" 
+                            step="0.01"
+                            className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none" 
+                            value={item.unitPrice}
+                            onChange={e => {
+                              const newItems = [...items];
+                              newItems[index].unitPrice = Number(e.target.value);
+                              setItems(newItems);
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input 
+                            type="text" 
+                            className="w-full border border-erp-border rounded px-2 py-1 text-xs outline-none bg-gray-50" 
+                            value={(item.qty * item.unitPrice).toFixed(2)}
+                            readOnly
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <button 
+                            type="button"
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-400 hover:text-red-600 disabled:opacity-30"
+                            disabled={items.length === 1}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -425,7 +432,7 @@ export const CreateRequirement: React.FC<CreateRequirementProps> = ({ onClose, o
         <ProcessHistorySection />
 
         {/* Hidden Submit Button for form handling */}
-        <button id="req-submit-btn" type="submit" className="hidden">Submit</button>
+        <button id="action-submit-btn" type="submit" className="hidden">Submit</button>
       </form>
     </div>
   );

@@ -185,6 +185,9 @@ export const CreateProjectApproval: React.FC<CreateProjectApprovalProps> = ({
     setEditingLot(null);
   };
 
+  const [processOpinion, setProcessOpinion] = useState('');
+  const [processAction, setProcessAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden border-l border-erp-border shadow-xl">
       {/* Header */}
@@ -208,32 +211,6 @@ export const CreateProjectApproval: React.FC<CreateProjectApprovalProps> = ({
             <Send className="w-3.5 h-3.5" />
             <span>提交信息</span>
           </button>
-          {onApprove && formData.id && formData.status !== '审核通过' && (
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={() => {
-                  onApprove(formData.id!);
-                  onClose();
-                }}
-                className="px-4 py-1.5 bg-green-600 text-white rounded-[2px] text-xs font-medium hover:bg-green-700 transition-colors flex items-center space-x-1"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>审核通过</span>
-              </button>
-              {onReject && (
-                <button 
-                  onClick={() => {
-                    onReject(formData.id!);
-                    onClose();
-                  }}
-                  className="px-4 py-1.5 bg-red-600 text-white rounded-[2px] text-xs font-medium hover:bg-red-700 transition-colors flex items-center space-x-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>审核不通过</span>
-                </button>
-              )}
-            </div>
-          )}
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -635,6 +612,73 @@ export const CreateProjectApproval: React.FC<CreateProjectApprovalProps> = ({
             </div>
           )}
         </div>
+
+        {/* Section 05: Process Action (Conditional) */}
+        {formData.status === '待审核' && (
+          <div className="bg-white border border-gray-200 rounded-sm overflow-hidden">
+            <div className="px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-blue-500 font-bold text-xs">05</span>
+                <span className="text-xs font-bold text-gray-700">处理操作</span>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center space-x-6">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="processAction" 
+                    className="text-green-600 focus:ring-green-500"
+                    checked={processAction === 'APPROVE'}
+                    onChange={() => setProcessAction('APPROVE')}
+                  />
+                  <span className="text-xs font-medium text-gray-700">审核通过</span>
+                </label>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="processAction" 
+                    className="text-red-600 focus:ring-red-500"
+                    checked={processAction === 'REJECT'}
+                    onChange={() => setProcessAction('REJECT')}
+                  />
+                  <span className="text-xs font-medium text-gray-700">审核不通过</span>
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-gray-500">处理意见: <span className="text-red-500">*</span></label>
+                <textarea 
+                  className="w-full border border-gray-300 rounded-[2px] p-3 text-xs outline-none focus:border-blue-500 h-24 bg-white"
+                  placeholder="请输入处理意见"
+                  value={processOpinion}
+                  onChange={e => setProcessOpinion(e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button 
+                  disabled={!processAction || !processOpinion.trim()}
+                  onClick={() => {
+                    if (processAction === 'APPROVE' && onApprove) {
+                      onApprove(formData.id!, processOpinion);
+                    } else if (processAction === 'REJECT' && onReject) {
+                      onReject(formData.id!, processOpinion);
+                    }
+                    onClose();
+                  }}
+                  className={`px-8 py-2 text-xs font-bold rounded-[2px] transition-all shadow-sm ${
+                    !processAction || !processOpinion.trim()
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-[#2196F3] text-white hover:bg-blue-600'
+                  }`}
+                >
+                  提交处理
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <PickPlanModal 

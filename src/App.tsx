@@ -49,9 +49,10 @@ import { CreateProjectApproval } from './components/CreateProjectApproval';
 import { PickRequirementModal } from './components/PickRequirementModal';
 import { AssignModal } from './components/AssignModal';
 import { PickApprovedModal } from './components/PickApprovedModal';
+import { InitiateActionForm } from './components/InitiateActionForm';
 import { motion, AnimatePresence } from 'motion/react';
 
-type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN' | 'VIEW_SUB' | 'PROJECT_APP' | 'CREATE_PROJECT' | 'REQ_CHANGE' | 'PLAN_CHANGE' | 'REQ_TERMINATE' | 'PLAN_TERMINATE';
+type ViewType = 'DASHBOARD' | 'REQ_APP' | 'REQ_POOL' | 'PLAN_POOL' | 'SUB_POOL' | 'TRACE' | 'CREATE_REQ' | 'VIEW_REQ' | 'VIEW_PLAN' | 'VIEW_SUB' | 'PROJECT_APP' | 'CREATE_PROJECT' | 'REQ_CHANGE' | 'PLAN_CHANGE' | 'REQ_TERMINATE' | 'PLAN_TERMINATE' | 'INITIATE_ACTION';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewType>('DASHBOARD');
@@ -89,7 +90,8 @@ export default function App() {
   const [pickApprovedAction, setPickApprovedAction] = useState<'CHANGE' | 'TERMINATE'>('CHANGE');
 
   // View Document State
-  const [viewingDoc, setViewingDoc] = useState<Requirement | Plan | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<Requirement | Plan | Subcontract | null>(null);
+  const [actionDoc, setActionDoc] = useState<Requirement | Plan | null>(null);
 
   // Stats
   const stats = useMemo(() => {
@@ -575,6 +577,18 @@ export default function App() {
     setSubcontractModalOpen(true);
   };
 
+  const handleDeleteRequirement = (ids: string[]) => {
+    if (confirm(`确定要删除选中的 ${ids.length} 项需求吗？`)) {
+      setRequirements(prev => prev.filter(r => !ids.includes(r.id)));
+    }
+  };
+
+  const handleDeletePlan = (ids: string[]) => {
+    if (confirm(`确定要删除选中的 ${ids.length} 项计划吗？`)) {
+      setPlans(prev => prev.filter(p => !ids.includes(p.id)));
+    }
+  };
+
   const confirmSubcontract = (name: string, selectedItems: { id: string, qty: number }[]) => {
     const now = Date.now();
     const subcontractItems: any[] = [];
@@ -720,35 +734,254 @@ export default function App() {
     setCurrentView('PROJECT_APP');
   };
 
-  const handleApprove = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
-    const timestamp = new Date().toISOString();
+  const handleApprove = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT', opinion?: string) => {
+    const timestamp = new Date().toLocaleString();
+    if (type === 'REQ') {
+      setRequirements(prev => {
+        const doc = prev.find(r => r.id === id);
+        if (!doc) return prev;
+
+        const newHistory = [...(doc.history || [])];
+        
+        if (doc.auditStatus === AuditStatus.CHANGE_PENDING) {
+          // Archive original
+          const archivedDoc = { 
+            ...doc, 
+            auditStatus: AuditStatus.APPROVED, 
+            processStatus: ReqProcessStatus.ARCHIVED,
+            history: [
+              ...newHistory,
+              {
+                id: `H-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'CHANGE' as const,
+                reason: doc.changeReason || '',
+                opinion: opinion,
+                timestamp,
+                operator: '管理员',
+                status: AuditStatus.APPROVED
+              }
+            ]
+          };
+
+          // Create new version
+          const newDoc: Requirement = {
+            ...doc,
+            id: `REQ-${Date.now()}`,
+            auditStatus: AuditStatus.APPROVED,
+            processStatus: ReqProcessStatus.NORMAL,
+            changeReason: undefined,
+            history: [
+              {
+                id: `H-NEW-${Date.now()}`,
+                type: 'SUBMIT' as const,
+                opinion: '变更后自动生成',
+                timestamp,
+                operator: '系统',
+                status: AuditStatus.APPROVED
+              }
+            ]
+          };
+
+          // Add lineage
+          const newLineage: LineageRelation = {
+            id: `L-CHANGE-${Date.now()}`,
+            type: 'REQ_CHANGE',
+            sourceIds: [doc.id],
+            targetIds: [newDoc.id],
+            qty: doc.qty,
+            timestamp: new Date().toLocaleString(),
+          };
+          setLineage(l => [...l, newLineage]);
+
+          return prev.map(r => r.id === id ? archivedDoc : r).concat(newDoc);
+        }
+
+        if (doc.auditStatus === AuditStatus.TERMINATE_PENDING) {
+          return prev.map(r => r.id === id ? { 
+            ...r, 
+            auditStatus: AuditStatus.TERMINATED, 
+            processStatus: ReqProcessStatus.TERMINATED,
+            history: [
+              ...newHistory,
+              {
+                id: `H-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'TERMINATE' as const,
+                reason: r.terminationReason || '',
+                opinion: opinion,
+                timestamp,
+                operator: '管理员',
+                status: AuditStatus.TERMINATED
+              }
+            ]
+          } : r);
+        }
+
+        // Normal approval
+        return prev.map(r => r.id === id ? { 
+          ...r, 
+          auditStatus: AuditStatus.APPROVED,
+          history: [
+            ...newHistory,
+            {
+              id: `H-APP-${Date.now()}`,
+              type: 'APPROVE' as const,
+              opinion: opinion || '审核通过',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.APPROVED
+            }
+          ]
+        } : r);
+      });
+    } else if (type === 'PLAN') {
+      setPlans(prev => {
+        const doc = prev.find(p => p.id === id);
+        if (!doc) return prev;
+
+        const newHistory = [...(doc.history || [])];
+
+        if (doc.auditStatus === AuditStatus.CHANGE_PENDING) {
+          // Archive original
+          const archivedDoc = { 
+            ...doc, 
+            auditStatus: AuditStatus.APPROVED, 
+            processStatus: PlanProcessStatus.ARCHIVED,
+            history: [
+              ...newHistory,
+              {
+                id: `H-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'CHANGE' as const,
+                reason: doc.changeReason || '',
+                opinion: opinion,
+                timestamp,
+                operator: '管理员',
+                status: AuditStatus.APPROVED
+              }
+            ]
+          };
+
+          // Create new version
+          const newDoc: Plan = {
+            ...doc,
+            id: `PLN-${Date.now()}`,
+            auditStatus: AuditStatus.APPROVED,
+            processStatus: PlanProcessStatus.NORMAL,
+            changeReason: undefined,
+            history: [
+              {
+                id: `H-NEW-${Date.now()}`,
+                type: 'SUBMIT' as const,
+                opinion: '变更后自动生成',
+                timestamp,
+                operator: '系统',
+                status: AuditStatus.APPROVED
+              }
+            ]
+          };
+
+          // Add lineage
+          const newLineage: LineageRelation = {
+            id: `L-CHANGE-${Date.now()}`,
+            type: 'PLAN_CHANGE',
+            sourceIds: [doc.id],
+            targetIds: [newDoc.id],
+            qty: doc.qty,
+            timestamp: new Date().toLocaleString(),
+          };
+          setLineage(l => [...l, newLineage]);
+
+          return prev.map(p => p.id === id ? archivedDoc : p).concat(newDoc);
+        }
+
+        if (doc.auditStatus === AuditStatus.TERMINATE_PENDING) {
+          return prev.map(p => p.id === id ? { 
+            ...p, 
+            auditStatus: AuditStatus.TERMINATED, 
+            processStatus: PlanProcessStatus.TERMINATED,
+            history: [
+              ...newHistory,
+              {
+                id: `H-${Math.random().toString(36).substr(2, 9)}`,
+                type: 'TERMINATE' as const,
+                reason: p.terminationReason || '',
+                opinion: opinion,
+                timestamp,
+                operator: '管理员',
+                status: AuditStatus.TERMINATED
+              }
+            ]
+          } : p);
+        }
+
+        // Normal approval
+        return prev.map(p => p.id === id ? { 
+          ...p, 
+          auditStatus: AuditStatus.APPROVED,
+          history: [
+            ...newHistory,
+            {
+              id: `H-APP-${Date.now()}`,
+              type: 'APPROVE' as const,
+              opinion: opinion || '审核通过',
+              timestamp,
+              operator: '管理员',
+              status: AuditStatus.APPROVED
+            }
+          ]
+        } : p);
+      });
+    } else if (type === 'PROJECT') {
+      setProjects(projects.map(p => p.id === id ? { 
+        ...p, 
+        status: '审核通过',
+        history: [
+          ...(p.history || []),
+          {
+            id: `H-APP-${Date.now()}`,
+            type: 'APPROVE' as const,
+            opinion: opinion || '审核通过',
+            timestamp,
+            operator: '管理员',
+            status: '审核通过'
+          }
+        ]
+      } : p));
+    } else if (type === 'SUB') {
+      setSubcontracts(subcontracts.map(s => s.id === id ? { 
+        ...s, 
+        status: '审核通过',
+        history: [
+          ...(s.history || []),
+          {
+            id: `H-APP-${Date.now()}`,
+            type: 'APPROVE' as const,
+            opinion: opinion || '审核通过',
+            timestamp,
+            operator: '管理员',
+            status: '审核通过'
+          }
+        ]
+      } : s));
+    }
+  };
+
+  const handleReject = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT', opinion?: string) => {
+    const timestamp = new Date().toLocaleString();
     if (type === 'REQ') {
       setRequirements(requirements.map(r => {
         if (r.id === id) {
           const newHistory = [...(r.history || [])];
-          if (r.auditStatus === AuditStatus.CHANGE_PENDING) {
-            newHistory.push({
-              id: `H-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'CHANGE',
-              reason: r.changeReason || '',
-              timestamp,
-              operator: '管理员',
-              status: AuditStatus.APPROVED
-            });
-            return { ...r, auditStatus: AuditStatus.APPROVED, history: newHistory };
-          }
-          if (r.auditStatus === AuditStatus.TERMINATE_PENDING) {
-            newHistory.push({
-              id: `H-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'TERMINATE',
-              reason: r.terminationReason || '',
-              timestamp,
-              operator: '管理员',
-              status: AuditStatus.TERMINATED
-            });
-            return { ...r, auditStatus: AuditStatus.TERMINATED, processStatus: ReqProcessStatus.TERMINATED, history: newHistory };
-          }
-          return { ...r, auditStatus: AuditStatus.APPROVED };
+          newHistory.push({
+            id: `H-REJ-${Date.now()}`,
+            type: 'REJECT' as const,
+            opinion: opinion || '审核不通过',
+            timestamp,
+            operator: '管理员',
+            status: AuditStatus.REJECTED
+          });
+          if (r.auditStatus === AuditStatus.CHANGE_PENDING) return { ...r, auditStatus: AuditStatus.CHANGE_REJECTED, history: newHistory };
+          if (r.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...r, auditStatus: AuditStatus.TERMINATE_REJECTED, history: newHistory };
+          return { ...r, auditStatus: AuditStatus.REJECTED, history: newHistory };
         }
         return r;
       }));
@@ -756,62 +989,52 @@ export default function App() {
       setPlans(plans.map(p => {
         if (p.id === id) {
           const newHistory = [...(p.history || [])];
-          if (p.auditStatus === AuditStatus.CHANGE_PENDING) {
-            newHistory.push({
-              id: `H-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'CHANGE',
-              reason: p.changeReason || '',
-              timestamp,
-              operator: '管理员',
-              status: AuditStatus.APPROVED
-            });
-            return { ...p, auditStatus: AuditStatus.APPROVED, history: newHistory };
-          }
-          if (p.auditStatus === AuditStatus.TERMINATE_PENDING) {
-            newHistory.push({
-              id: `H-${Math.random().toString(36).substr(2, 9)}`,
-              type: 'TERMINATE',
-              reason: p.terminationReason || '',
-              timestamp,
-              operator: '管理员',
-              status: AuditStatus.TERMINATED
-            });
-            return { ...p, auditStatus: AuditStatus.TERMINATED, processStatus: PlanProcessStatus.TERMINATED, history: newHistory };
-          }
-          return { ...p, auditStatus: AuditStatus.APPROVED };
+          newHistory.push({
+            id: `H-REJ-${Date.now()}`,
+            type: 'REJECT' as const,
+            opinion: opinion || '审核不通过',
+            timestamp,
+            operator: '管理员',
+            status: AuditStatus.REJECTED
+          });
+          if (p.auditStatus === AuditStatus.CHANGE_PENDING) return { ...p, auditStatus: AuditStatus.CHANGE_REJECTED, history: newHistory };
+          if (p.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...p, auditStatus: AuditStatus.TERMINATE_REJECTED, history: newHistory };
+          return { ...p, auditStatus: AuditStatus.REJECTED, history: newHistory };
         }
         return p;
       }));
     } else if (type === 'PROJECT') {
-      setProjects(projects.map(p => p.id === id ? { ...p, status: '审核通过' } : p));
+      setProjects(projects.map(p => p.id === id ? { 
+        ...p, 
+        status: '审核不通过',
+        history: [
+          ...(p.history || []),
+          {
+            id: `H-REJ-${Date.now()}`,
+            type: 'REJECT' as const,
+            opinion: opinion || '审核不通过',
+            timestamp,
+            operator: '管理员',
+            status: '审核不通过'
+          }
+        ]
+      } : p));
     } else if (type === 'SUB') {
-      setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核通过' } : s));
-    }
-  };
-
-  const handleReject = (id: string, type: 'REQ' | 'PLAN' | 'SUB' | 'PROJECT') => {
-    if (type === 'REQ') {
-      setRequirements(requirements.map(r => {
-        if (r.id === id) {
-          if (r.auditStatus === AuditStatus.CHANGE_PENDING) return { ...r, auditStatus: AuditStatus.CHANGE_REJECTED };
-          if (r.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...r, auditStatus: AuditStatus.TERMINATE_REJECTED };
-          return { ...r, auditStatus: AuditStatus.REJECTED };
-        }
-        return r;
-      }));
-    } else if (type === 'PLAN') {
-      setPlans(plans.map(p => {
-        if (p.id === id) {
-          if (p.auditStatus === AuditStatus.CHANGE_PENDING) return { ...p, auditStatus: AuditStatus.CHANGE_REJECTED };
-          if (p.auditStatus === AuditStatus.TERMINATE_PENDING) return { ...p, auditStatus: AuditStatus.TERMINATE_REJECTED };
-          return { ...p, auditStatus: AuditStatus.REJECTED };
-        }
-        return p;
-      }));
-    } else if (type === 'PROJECT') {
-      setProjects(projects.map(p => p.id === id ? { ...p, status: '审核不通过' } : p));
-    } else if (type === 'SUB') {
-      setSubcontracts(subcontracts.map(s => s.id === id ? { ...s, status: '审核不通过' } : s));
+      setSubcontracts(subcontracts.map(s => s.id === id ? { 
+        ...s, 
+        status: '审核不通过',
+        history: [
+          ...(s.history || []),
+          {
+            id: `H-REJ-${Date.now()}`,
+            type: 'REJECT' as const,
+            opinion: opinion || '审核不通过',
+            timestamp,
+            operator: '管理员',
+            status: '审核不通过'
+          }
+        ]
+      } : s));
     }
   };
 
@@ -1095,8 +1318,8 @@ export default function App() {
                     onSubmit={handleSubmitDoc}
                     onChange={handleChangeDoc}
                     onTerminate={handleTerminateDoc}
-                    onApprove={(id) => handleApprove(id, 'REQ')}
-                    onReject={(id) => handleReject(id, 'REQ')}
+                    onApprove={(id, opinion) => handleApprove(id, 'REQ', opinion)}
+                    onReject={(id, opinion) => handleReject(id, 'REQ', opinion)}
                   />
                 </motion.div>
               )}
@@ -1112,8 +1335,8 @@ export default function App() {
                     onSubmit={handleSubmitDoc}
                     onChange={handleChangeDoc}
                     onTerminate={handleTerminateDoc}
-                    onApprove={(id) => handleApprove(id, 'PLAN')}
-                    onReject={(id) => handleReject(id, 'PLAN')}
+                    onApprove={(id, opinion) => handleApprove(id, 'PLAN', opinion)}
+                    onReject={(id, opinion) => handleReject(id, 'PLAN', opinion)}
                     onAddRequirement={(planId) => {
                       setPickReqTargetId(planId);
                       setPickReqModalOpen(true);
@@ -1134,6 +1357,7 @@ export default function App() {
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onDelete={handleDeleteRequirement}
                   />
                 </motion.div>
               )}
@@ -1153,6 +1377,7 @@ export default function App() {
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onDelete={handleDeletePlan}
                     onPickRequirements={(targetId) => {
                       setPickReqTargetId(targetId);
                       setPickReqModalOpen(true);
@@ -1193,6 +1418,7 @@ export default function App() {
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onDelete={handleDeleteRequirement}
                     mode="CHANGE"
                     onInitiate={() => {
                       setPickApprovedType('REQ');
@@ -1212,6 +1438,7 @@ export default function App() {
                     onSplit={handleSplitReq}
                     onView={(req) => handleViewDoc(req, 'REQ')}
                     onApprove={(id) => handleApprove(id, 'REQ')}
+                    onDelete={handleDeleteRequirement}
                     mode="TERMINATE"
                     onInitiate={() => {
                       setPickApprovedType('REQ');
@@ -1232,6 +1459,7 @@ export default function App() {
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onDelete={handleDeletePlan}
                     onPickRequirements={(targetId) => {
                       setPickReqTargetId(targetId);
                       setPickReqModalOpen(true);
@@ -1256,6 +1484,7 @@ export default function App() {
                     onSplit={handleSplitPlan}
                     onView={(plan) => handleViewDoc(plan, 'PLAN')}
                     onApprove={(id) => handleApprove(id, 'PLAN')}
+                    onDelete={handleDeletePlan}
                     onPickRequirements={(targetId) => {
                       setPickReqTargetId(targetId);
                       setPickReqModalOpen(true);
@@ -1277,8 +1506,8 @@ export default function App() {
                       setSelectedSubsForProject([]);
                     }} 
                     onSave={handleSaveProject}
-                    onApprove={(id) => handleApprove(id, 'PROJECT')}
-                    onReject={(id) => handleReject(id, 'PROJECT')}
+                    onApprove={(id, opinion) => handleApprove(id, 'PROJECT', opinion)}
+                    onReject={(id, opinion) => handleReject(id, 'PROJECT', opinion)}
                     onDeleteLot={(subId) => setSubcontracts(subcontracts.map(s => s.id === subId ? { ...s, status: '编辑中' } : s))}
                     plans={plans}
                     subcontracts={subcontracts}
@@ -1291,8 +1520,8 @@ export default function App() {
                   <CreateProjectApproval 
                     onClose={() => setCurrentView('PROJECT_APP')} 
                     onSave={handleSaveProject}
-                    onApprove={(id) => handleApprove(id, 'PROJECT')}
-                    onReject={(id) => handleReject(id, 'PROJECT')}
+                    onApprove={(id, opinion) => handleApprove(id, 'PROJECT', opinion)}
+                    onReject={(id, opinion) => handleReject(id, 'PROJECT', opinion)}
                     onDeleteLot={(subId) => setSubcontracts(subcontracts.map(s => s.id === subId ? { ...s, status: '编辑中' } : s))}
                     plans={plans}
                     subcontracts={subcontracts}
@@ -1309,8 +1538,36 @@ export default function App() {
                     requirements={requirements}
                     onClose={() => setCurrentView('SUB_POOL')} 
                     onUpdate={handleUpdateDoc}
-                    onApprove={(id) => handleApprove(id, 'SUB')}
-                    onReject={(id) => handleReject(id, 'SUB')}
+                    onApprove={(id, opinion) => handleApprove(id, 'SUB', opinion)}
+                    onReject={(id, opinion) => handleReject(id, 'SUB', opinion)}
+                  />
+                </motion.div>
+              )}
+              {currentView === 'INITIATE_ACTION' && actionDoc && (
+                <motion.div key="initiate-action" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="h-full">
+                  <InitiateActionForm 
+                    initialDoc={actionDoc}
+                    type={pickApprovedType}
+                    actionType={pickApprovedAction}
+                    onClose={() => {
+                      const backView = pickApprovedType === 'REQ' 
+                        ? (pickApprovedAction === 'CHANGE' ? 'REQ_CHANGE' : 'REQ_TERMINATE')
+                        : (pickApprovedAction === 'CHANGE' ? 'PLAN_CHANGE' : 'PLAN_TERMINATE');
+                      setCurrentView(backView as ViewType);
+                      setActionDoc(null);
+                    }}
+                    onSave={(updatedDoc) => {
+                      if (pickApprovedType === 'REQ') {
+                        setRequirements(requirements.map(r => r.id === updatedDoc.id ? updatedDoc as Requirement : r));
+                      } else {
+                        setPlans(plans.map(p => p.id === updatedDoc.id ? updatedDoc as Plan : p));
+                      }
+                      const backView = pickApprovedType === 'REQ' 
+                        ? (pickApprovedAction === 'CHANGE' ? 'REQ_CHANGE' : 'REQ_TERMINATE')
+                        : (pickApprovedAction === 'CHANGE' ? 'PLAN_CHANGE' : 'PLAN_TERMINATE');
+                      setCurrentView(backView as ViewType);
+                      setActionDoc(null);
+                    }}
                   />
                 </motion.div>
               )}
@@ -1409,20 +1666,8 @@ export default function App() {
             const doc = pickApprovedType === 'REQ' ? requirements.find(r => r.id === id) : plans.find(p => p.id === id);
             
             if (doc) {
-              const updatedDoc = { 
-                ...doc, 
-                auditStatus: pickApprovedAction === 'CHANGE' ? AuditStatus.CHANGE_DRAFT : AuditStatus.TERMINATE_DRAFT,
-                changeReason: pickApprovedAction === 'CHANGE' ? '' : (doc as any).changeReason,
-                terminationReason: pickApprovedAction === 'TERMINATE' ? '' : (doc as any).terminationReason
-              };
-              
-              if (pickApprovedAction === 'CHANGE') {
-                handleChangeDoc(id, '');
-              } else {
-                handleTerminateDoc(id, '');
-              }
-              
-              handleViewDoc(updatedDoc, pickApprovedType);
+              setActionDoc(doc);
+              setCurrentView('INITIATE_ACTION');
             }
           }}
         />
