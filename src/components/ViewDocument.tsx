@@ -88,6 +88,66 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
 
   const qty = getQty();
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExportHTML = () => {
+    const content = window.document.getElementById('printable-document')?.innerHTML;
+    if (!content) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>${title} - ${document.id}</title>
+        <style>
+          body { font-family: sans-serif; padding: 40px; color: #333; line-height: 1.5; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; }
+          th, td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; }
+          th { background-color: #f8f9fb; font-weight: bold; color: #444; }
+          .header { margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; }
+          .header h1 { margin: 0; color: #1e40af; font-size: 24px; }
+          .header p { margin: 5px 0 0; color: #666; font-size: 14px; }
+          .section-title { font-size: 14px; font-weight: bold; color: #2563eb; margin-top: 25px; margin-bottom: 10px; border-left: 4px solid #2563eb; padding-left: 10px; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+          .field { display: flex; font-size: 12px; border-bottom: 1px dashed #eee; padding: 5px 0; }
+          .label { color: #6b7280; width: 140px; flex-shrink: 0; }
+          .value { color: #111827; font-weight: 500; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          .font-mono { font-family: monospace; }
+          .text-blue-600 { color: #2563eb; }
+          .text-orange-600 { color: #ea580c; }
+          /* Hide UI elements like buttons and progress bars in export */
+          button, .print\\:hidden, .flow-progress, .lucide { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${title}</h1>
+          <p>单据编号: ${document.id} | 创建时间: ${document.createdAt} | 状态: ${(document as any).auditStatus || (document as any).status}</p>
+        </div>
+        <div class="main-content">
+          ${content}
+        </div>
+        <div style="margin-top: 50px; font-size: 10px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px;">
+          导出于: ${new Date().toLocaleString()} | 系统管理部 采购管理系统
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url;
+    a.download = `${title}_${document.id}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
       {/* Header */}
@@ -163,10 +223,18 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <button className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all" title="打印">
+          <button 
+            onClick={handlePrint}
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all" 
+            title="打印"
+          >
             <Printer className="w-4 h-4" />
           </button>
-          <button className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all" title="导出">
+          <button 
+            onClick={handleExportHTML}
+            className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded transition-all" 
+            title="导出为HTML"
+          >
             <Download className="w-4 h-4" />
           </button>
           <div className="w-px h-4 bg-gray-200 mx-2"></div>
@@ -177,7 +245,7 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
       </div>
       
       {/* Flow Progress */}
-      <div className="px-6 py-4 bg-white border-b border-erp-border shrink-0">
+      <div className="px-6 py-4 bg-white border-b border-erp-border shrink-0 print:hidden flow-progress">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           {isSub ? (
             [
@@ -231,7 +299,7 @@ export const ViewDocument: React.FC<ViewDocumentProps> = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-6 space-y-8 bg-[#F9FAFB]">
+      <div id="printable-document" className="flex-1 overflow-auto p-6 space-y-8 bg-[#F9FAFB]">
         <div className="max-w-5xl mx-auto space-y-6">
           
           {/* Section 01: Basic Info */}
